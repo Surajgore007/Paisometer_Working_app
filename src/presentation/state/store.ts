@@ -14,18 +14,18 @@ const addTransactionUseCase = new AddTransactionUseCase(transactionRepo);
 interface AppState {
   transactions: Transaction[];
   settings: AppSettings;
-  
+
   // Computed stats
   todayTransactions: Transaction[];
   todaySpent: number;
   dailyBudget: number;
   todayRemaining: number;
   isOverBudget: boolean;
-  currentBalance: number; 
+  currentBalance: number;
 
   isLoading: boolean;
   error: string | null;
-  
+
   loadData: () => Promise<void>;
   addTransaction: (amount: number, category: Category, type?: TransactionType, note?: string) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
@@ -53,8 +53,9 @@ export const useStore = create<AppState>((set, get) => ({
   error: null,
 
   loadData: async () => {
+    if (get().isLoading) return;
     set({ isLoading: true, error: null });
-    
+
     try {
       // ------------------------------------------------------------
       // 1. SYNC FROM NATIVE (CRASH-PROOF VERSION)
@@ -62,27 +63,27 @@ export const useStore = create<AppState>((set, get) => ({
       let newAutoTxns: Transaction[] = [];
       try {
         const pendingTxns = await SmsParserService.checkPendingTransactions();
-        
+
         if (Array.isArray(pendingTxns) && pendingTxns.length > 0) {
-            console.log(`[Store] Synced ${pendingTxns.length} SMS transactions`);
-            
-            newAutoTxns = pendingTxns.map((p: any) => ({
-                // Deterministic-ish id prevents duplicates on repeated syncs
-                id: `sms-${p.timestamp || ''}-${p.amount || ''}-${p.merchant || ''}`,
-                amount: parseFloat(p.amount),
-                category: 'food',
-                type: (p.type === 'income' || p.type === 'expense') ? p.type : 'expense',
-                timestamp: new Date(p.timestamp),
-                note: p.note || `Auto: ${p.merchant}`,
-                merchant: p.merchant 
-            }));
+          console.log(`[Store] Synced ${pendingTxns.length} SMS transactions`);
+
+          newAutoTxns = pendingTxns.map((p: any) => ({
+            // Deterministic-ish id prevents duplicates on repeated syncs
+            id: `sms-${p.timestamp || ''}-${p.amount || ''}-${p.merchant || ''}`,
+            amount: parseFloat(p.amount),
+            category: 'food',
+            type: (p.type === 'income' || p.type === 'expense') ? p.type : 'expense',
+            timestamp: new Date(p.timestamp),
+            note: p.note || `Auto: ${p.merchant}`,
+            merchant: p.merchant
+          }));
         } else {
-            console.log('[Store] No pending SMS transactions');
+          console.log('[Store] No pending SMS transactions');
         }
       } catch (smsError) {
         console.warn('[Store] SMS Sync skipped:', smsError);
       }
-      
+
       // ------------------------------------------------------------
       // 2. MERGE WITH LOCAL STORAGE
       // ------------------------------------------------------------
@@ -164,6 +165,6 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setInitialBalance: async (amount) => {
-     await get().updateSettings({ initialBalance: amount });
+    await get().updateSettings({ initialBalance: amount });
   }
 }));

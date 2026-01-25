@@ -36,6 +36,18 @@ export const SmsParserService = {
   },
 
   /**
+   * Starts the foreground service for continuous SMS parsing.
+   * This is typically used on Android to keep the service alive in the background.
+   */
+  startForegroundService: () => {
+    if (Platform.OS === 'android') {
+      SMSParser.startForegroundService();
+    } else {
+      Alert.alert('Not Supported', 'Foreground service is only available on Android.');
+    }
+  },
+
+  /**
    * Checks the native queue for any transactions.
    * FIX: Added JSON parsing to handle the raw string from NativeModules.
    */
