@@ -155,7 +155,6 @@ class BankNotificationService : NotificationListenerService() {
             .setAutoCancel(true)
             .addAction(createAction("🍔 Food", "food"))
             .addAction(createAction("🚕 Travel", "transport"))
-            .addAction(createAction("💡 Bill", "bills"))
             .addAction(createAction("❔ Other", "other", withInput = true))
             .build()
 
