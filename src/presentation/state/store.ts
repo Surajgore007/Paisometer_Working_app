@@ -98,7 +98,7 @@ export const useStore = create<AppState>((set, get) => ({
               category: (p.category && p.category !== 'uncategorized') ? p.category : getCategory(p.merchant, p.note),
               type: (p.type === 'income' || p.type === 'expense') ? p.type : 'expense',
               timestamp: new Date(p.timestamp),
-              note: p.note || `Auto: ${p.merchant}`,
+              note: p.note || `Auto-Entry`,
               merchant: p.merchant
             };
           });

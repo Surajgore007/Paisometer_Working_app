@@ -66,7 +66,7 @@ object TxnParser {
             merchant = merchant,
             type = finalType,
             timestamp = System.currentTimeMillis(),
-            note = message
+            note = null // Privacy: Don't store full message body
         )
     }
 
@@ -126,7 +126,9 @@ object TxnParser {
                 if (m.find()) {
                     val s = m.group(1)
                     if (!s.isNullOrBlank()) {
-                        return s.trim().replace(Regex("\\s{2,}"), " ").take(60)
+                        // Strict cleanup: alphanumeric/spaces only, max 30 chars
+                        val clean = s.trim().replace(Regex("[^A-Za-z0-9 &.]"), "").take(30)
+                        if (clean.length > 2) return clean
                     }
                 }
             }
