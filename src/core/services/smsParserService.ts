@@ -3,6 +3,7 @@ import { NativeModules, Platform, Alert } from 'react-native';
 const { SMSParser } = NativeModules;
 
 export interface PendingTransaction {
+  id?: string;
   type: 'expense' | 'income';
   amount: number;
   merchant: string;
@@ -60,18 +61,21 @@ export const SmsParserService = {
         return [];
       }
       const result = await SMSParser.checkPendingTransactions();
-      
+
       // Safety check: Native returns string, we must parse it to an array
       const transactions = typeof result === 'string' ? JSON.parse(result) : result;
-      
+
       if (!Array.isArray(transactions)) return [];
 
       const normalized = transactions.map((t: any) => ({
+        id: t.id,
         type: t.type || 'expense',
         amount: parseFloat(t.amount),
         merchant: t.merchant || 'Unknown',
         timestamp: t.timestamp || Date.now(),
-        note: t.note || 'Auto-detected'
+        note: t.note || 'Auto-detected',
+        // Check if category exists (from smart categorization)
+        category: t.category || 'uncategorized'
       }));
 
       if (normalized.length > 0) {

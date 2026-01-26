@@ -83,16 +83,25 @@ export const useStore = create<AppState>((set, get) => ({
         if (Array.isArray(pendingTxns) && pendingTxns.length > 0) {
           console.log(`[Store] Synced ${pendingTxns.length} SMS transactions`);
 
-          newAutoTxns = pendingTxns.map((p: any) => ({
-            // Deterministic-ish id prevents duplicates on repeated syncs
-            id: `sms-${p.timestamp || ''}-${p.amount || ''}-${p.merchant || ''}`,
-            amount: parseFloat(p.amount),
-            category: getCategory(p.merchant, p.note),
-            type: (p.type === 'income' || p.type === 'expense') ? p.type : 'expense',
-            timestamp: new Date(p.timestamp),
-            note: p.note || `Auto: ${p.merchant}`,
-            merchant: p.merchant
-          }));
+          newAutoTxns = pendingTxns.map((p: any) => {
+            // Priority: 1. Native Smart Category (if clicked) 2. Regex fallback 3. 'other'
+            const smartCategory = (p.category && p.category !== 'uncategorized' && p.category !== 'food')
+              ? p.category
+              : getCategory(p.merchant, p.note);
+
+            // Fix: If user clicked "Food", native sends "food". If default was "uncategorized", we are good.
+            // But my TS update turned it into 'food' in Step 482? Let's check SmsParserService.
+
+            return {
+              id: p.id || `sms-${p.timestamp || ''}-${p.amount || ''}-${p.merchant || ''}`,
+              amount: parseFloat(p.amount),
+              category: (p.category && p.category !== 'uncategorized') ? p.category : getCategory(p.merchant, p.note),
+              type: (p.type === 'income' || p.type === 'expense') ? p.type : 'expense',
+              timestamp: new Date(p.timestamp),
+              note: p.note || `Auto: ${p.merchant}`,
+              merchant: p.merchant
+            };
+          });
         } else {
           console.log('[Store] No pending SMS transactions');
         }
