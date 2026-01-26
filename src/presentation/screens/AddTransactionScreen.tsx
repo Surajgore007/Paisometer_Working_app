@@ -1,4 +1,4 @@
-// Add Transaction Screen - Premium Monochrome Financial Interface
+// Add/Edit Transaction Screen - Premium Monochrome Financial Interface
 
 import React, { useState } from 'react';
 import {
@@ -19,15 +19,17 @@ import { CategorySelector } from '../components/categoryselector';
 import { Numpad } from '../components/numpad';
 import { Category, TransactionType } from '../../core/types';
 
-export const AddTransactionScreen: React.FC<{ navigation: any }> = ({
+export const AddTransactionScreen: React.FC<{ navigation: any; route: any }> = ({
   navigation,
+  route,
 }) => {
-  const { addTransaction, isLoading, error } = useStore();
+  const { addTransaction, editTransaction, isLoading, error } = useStore();
+  const editingTransaction = route.params?.transaction;
 
-  const [amount, setAmount] = useState('0');
-  const [category, setCategory] = useState<Category>('food');
-  const [type, setType] = useState<TransactionType>('expense');
-  const [note, setNote] = useState('');
+  const [amount, setAmount] = useState(editingTransaction ? editingTransaction.amount.toString() : '0');
+  const [category, setCategory] = useState<Category>(editingTransaction ? editingTransaction.category : 'food');
+  const [type, setType] = useState<TransactionType>(editingTransaction ? editingTransaction.type : 'expense');
+  const [note, setNote] = useState(editingTransaction ? editingTransaction.note || '' : '');
 
   const handleNumberPress = (num: string) => {
     if (amount === '0') {
@@ -60,11 +62,20 @@ export const AddTransactionScreen: React.FC<{ navigation: any }> = ({
     }
 
     try {
-      await addTransaction(numAmount, category, type, note || undefined);
+      if (editingTransaction) {
+        await editTransaction(editingTransaction.id, {
+          amount: numAmount,
+          category,
+          type,
+          note: note || undefined,
+        });
+      } else {
+        await addTransaction(numAmount, category, type, note || undefined);
+      }
       // Optional: Add haptic feedback here if available
       navigation.goBack();
     } catch (err) {
-      Alert.alert('Error', error || 'Failed to add transaction');
+      Alert.alert('Error', error || 'Failed to save transaction');
     }
   };
 
@@ -72,18 +83,18 @@ export const AddTransactionScreen: React.FC<{ navigation: any }> = ({
     <SafeAreaView style={styles.container}>
       {/* Header Row */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.closeButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Text style={styles.closeIcon}>✕</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>NEW ENTRY</Text>
+        <Text style={styles.headerTitle}>{editingTransaction ? 'EDIT ENTRY' : 'NEW ENTRY'}</Text>
         <View style={styles.placeholderIcon} />
       </View>
 
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
@@ -111,7 +122,7 @@ export const AddTransactionScreen: React.FC<{ navigation: any }> = ({
                   Expense
                 </Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[
                   styles.segmentButton,
@@ -190,7 +201,7 @@ export const AddTransactionScreen: React.FC<{ navigation: any }> = ({
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.submitButtonText}>
-                CONFIRM {type === 'income' ? 'INCOME' : 'EXPENSE'}
+                {editingTransaction ? 'UPDATE' : 'CONFIRM'} {type === 'income' ? 'INCOME' : 'EXPENSE'}
               </Text>
             )}
           </TouchableOpacity>
@@ -235,7 +246,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 20,
   },
-  
+
   // Segmented Control
   segmentContainer: {
     alignItems: 'center',

@@ -4,11 +4,26 @@ import { SmsParserService } from '../../core/services/smsParserService';
 import { SettingsRepository } from '../../data/repositories/settingsrepository';
 import { TransactionRepository } from '../../data/repositories/transactionrepository';
 import { AddTransactionUseCase } from '../../domain/usecases/addtransaction';
+import { EditTransactionUseCase } from '../../domain/usecases/edittransaction';
 import { getStartOfDay, getEndOfDay } from '../../core/utils';
 
 const settingsRepo = new SettingsRepository();
 const transactionRepo = new TransactionRepository();
 const addTransactionUseCase = new AddTransactionUseCase(transactionRepo);
+const editTransactionUseCase = new EditTransactionUseCase(transactionRepo);
+
+// Helper for basic categorization
+const getCategory = (merchant: string, note: string): Category => {
+  const lower = (merchant + ' ' + note).toLowerCase();
+
+  if (lower.match(/swiggy|zomato|domino|kfc|pizza|burger|mcdonald|cafe|coffee|tea|restaurant|biryani|kitchen|bar/)) return 'food';
+  if (lower.match(/uber|ola|rapido|petrol|fuel|shell|hp|indian oil|metro|irctc|rail|auto/)) return 'transport';
+  if (lower.match(/amazon|flipkart|myntra|ajio|dmart|blinkit|zepto|store|mart|shop/)) return 'shopping';
+  if (lower.match(/netflix|spotify|hotstar|prime|youtube|cinema|movie|pvr|inox/)) return 'entertainment';
+  if (lower.match(/jio|airtel|vi|bescom|electricity|water|gas|bill|recharge/)) return 'bills';
+
+  return 'other';
+};
 
 // Simple types for the Store
 interface AppState {
@@ -28,6 +43,7 @@ interface AppState {
 
   loadData: () => Promise<void>;
   addTransaction: (amount: number, category: Category, type?: TransactionType, note?: string) => Promise<void>;
+  editTransaction: (id: string, updates: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   updateSettings: (updates: Partial<AppSettings>) => Promise<void>;
   setInitialBalance: (amount: number) => Promise<void>;
@@ -71,7 +87,7 @@ export const useStore = create<AppState>((set, get) => ({
             // Deterministic-ish id prevents duplicates on repeated syncs
             id: `sms-${p.timestamp || ''}-${p.amount || ''}-${p.merchant || ''}`,
             amount: parseFloat(p.amount),
-            category: 'food',
+            category: getCategory(p.merchant, p.note),
             type: (p.type === 'income' || p.type === 'expense') ? p.type : 'expense',
             timestamp: new Date(p.timestamp),
             note: p.note || `Auto: ${p.merchant}`,
@@ -151,6 +167,11 @@ export const useStore = create<AppState>((set, get) => ({
 
   addTransaction: async (amount, category, type = 'expense', note) => {
     await addTransactionUseCase.execute(amount, category, type, note);
+    await get().loadData();
+  },
+
+  editTransaction: async (id, updates) => {
+    await editTransactionUseCase.execute(id, updates);
     await get().loadData();
   },
 

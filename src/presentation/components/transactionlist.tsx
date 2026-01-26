@@ -9,11 +9,13 @@ import { CATEGORIES } from '../../core/constants';
 interface TransactionListProps {
   transactions: Transaction[];
   onDeleteTransaction?: (id: string) => void;
+  onPressTransaction?: (transaction: Transaction) => void;
 }
 
 export const TransactionList: React.FC<TransactionListProps> = ({
   transactions,
   onDeleteTransaction,
+  onPressTransaction,
 }) => {
   const getCategory = (categoryId: string) => {
     return CATEGORIES.find(cat => cat.id === categoryId);
@@ -28,19 +30,26 @@ export const TransactionList: React.FC<TransactionListProps> = ({
 
   const renderTransaction = ({ item }: { item: Transaction }) => {
     const category = getCategory(item.category);
-    
+
     return (
-      <View style={styles.transactionItem}>
+      <TouchableOpacity
+        style={styles.transactionItem}
+        activeOpacity={0.7}
+        onPress={() => onPressTransaction && onPressTransaction(item)}
+      >
         <View style={styles.iconContainer}>
           <Text style={styles.emoji}>{category?.emoji || '📦'}</Text>
         </View>
-        
+
         <View style={styles.details}>
           <Text style={styles.category}>{category?.label || 'Other'}</Text>
           <Text style={styles.time}>{formatTime(item.timestamp)}</Text>
+          {item.merchant ? (
+            <Text style={styles.merchant}>{item.merchant}</Text>
+          ) : null}
           {item.note && <Text style={styles.note}>{item.note}</Text>}
         </View>
-        
+
         <View style={styles.amountContainer}>
           <Text
             style={[
@@ -57,11 +66,12 @@ export const TransactionList: React.FC<TransactionListProps> = ({
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => onDeleteTransaction(item.id)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Text style={styles.deleteText}>✕</Text>
           </TouchableOpacity>
         )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -134,6 +144,12 @@ const styles = StyleSheet.create({
   time: {
     fontSize: 12,
     color: '#6B7280',
+  },
+  merchant: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#374151',
+    marginTop: 2,
   },
   note: {
     fontSize: 12,

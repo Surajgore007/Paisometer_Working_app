@@ -49,9 +49,9 @@ export const TodayScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           "Paisometer needs to read your bank notifications to track spends automatically.",
           [
             { text: "Later", style: "cancel" },
-            { 
-              text: "Enable Now", 
-              onPress: () => SmsParserService.requestPermission() 
+            {
+              text: "Enable Now",
+              onPress: () => SmsParserService.requestPermission()
             }
           ]
         );
@@ -89,7 +89,7 @@ export const TodayScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   // Pull to Refresh Handler
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadData(); 
+    await loadData();
     setRefreshing(false);
   }, [loadData]);
 
@@ -109,7 +109,16 @@ export const TodayScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const category = getCategory(item.category);
 
     return (
-      <View style={styles.transactionRow}>
+      <TouchableOpacity
+        style={styles.transactionRow}
+        onPress={() => navigation.navigate('AddTransactionModal', {
+          transaction: {
+            ...item,
+            timestamp: item.timestamp.toISOString()
+          }
+        })}
+        activeOpacity={0.7}
+      >
         <View style={styles.iconContainer}>
           <Text style={styles.emoji}>{category?.emoji || '▪️'}</Text>
         </View>
@@ -146,7 +155,7 @@ export const TodayScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         >
           <Text style={styles.deleteIcon}>×</Text>
         </TouchableOpacity>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -155,15 +164,15 @@ export const TodayScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <View style={styles.topNav}>
         <View style={styles.dateContainer}>
           <Text style={styles.dateText}>
-            {new Date().toLocaleDateString('en-IN', { 
-              weekday: 'long', 
+            {new Date().toLocaleDateString('en-IN', {
+              weekday: 'long',
               day: 'numeric',
               month: 'long'
             }).toUpperCase()}
           </Text>
           <Text style={styles.pageTitle}>Dashboard</Text>
         </View>
-        
+
         <TouchableOpacity
           style={styles.settingsBtn}
           onPress={() => navigation.navigate('Settings')}
@@ -225,7 +234,7 @@ export const TodayScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         ListEmptyComponent={renderEmptyState}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={Platform.OS === 'android'} 
+        removeClippedSubviews={Platform.OS === 'android'}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
