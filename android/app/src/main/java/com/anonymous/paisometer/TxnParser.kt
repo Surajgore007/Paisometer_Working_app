@@ -17,7 +17,7 @@ data class ParsedTxn(
 
 object TxnParser {
     // Triggers to identify if a message is a transaction
-    private val MANDATORY_TRIGGERS = listOf("debited", "credited", "spent", "paid", "received", "deposited", "sent", "transferred")
+    private val MANDATORY_TRIGGERS = listOf("debited", "credited", "spent", "paid", "received", "deposited", "sent", "transferred", "txn", "purchase", "payment", "withdrawn")
 
     // Patterns to find the Merchant Name (e.g., "at Swiggy", "via UPI")
     private val MERCHANT_PATTERNS = listOf(

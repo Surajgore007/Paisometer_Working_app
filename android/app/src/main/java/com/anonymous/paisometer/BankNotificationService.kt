@@ -11,6 +11,9 @@ import kotlin.random.Random
 
 class BankNotificationService : NotificationListenerService() {
 
+    private var lastTxnSignature: String = ""
+    private var lastTxnTime: Long = 0
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         // Safety check: ensure notification is valid
         if (sbn == null) return
@@ -56,13 +59,27 @@ class BankNotificationService : NotificationListenerService() {
             val txn = TxnParser.parseSms(fullMessage) 
             
             if (txn != null) {
+                // Deduplication: Check if we processed this exact txn signature < 5 seconds ago
+                val signature = "${txn.amount}|${txn.merchant}|${txn.type}"
+                val now = System.currentTimeMillis()
+                
+                if (signature == lastTxnSignature && (now - lastTxnTime) < 5000) {
+                    Log.d("PaisometerNative", "Duplicate ignored: $signature")
+                    return
+                }
+                
+                lastTxnSignature = signature
+                lastTxnTime = now
+
                 Log.d("PaisometerNative", "Transaction Captured: ${txn.amount} at ${txn.merchant}")
                 
                 // 4. Save to Queue (Dead Letter Queue)
                 TransactionStore.add(applicationContext, txn)
                 
                 // 5. Show Interactive Notification
-                showCategorizationNotification(txn)
+                if (txn.type != "income") {
+                    showCategorizationNotification(txn)
+                }
             }
         }
     }

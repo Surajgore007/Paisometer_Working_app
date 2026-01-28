@@ -7,6 +7,9 @@ import com.facebook.react.bridge.ReactMethod
 import android.content.Intent
 import android.provider.Settings
 import android.util.Log
+import android.app.NotificationManager
+import android.content.Context
+import android.service.notification.StatusBarNotification
 
 class SMSParserModule(private val reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
@@ -20,6 +23,18 @@ class SMSParserModule(private val reactContext: ReactApplicationContext) : React
         try {
             // Read from the Shared Memory (This returns a JSON String)
             val jsonString = TransactionStore.popAll(reactContext)
+            
+            // CLEANUP: Dismiss only Categorization notifications (keep sticky service alert)
+             val manager = reactContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+             val activeNotifications = manager.activeNotifications
+             
+             for (notification in activeNotifications) {
+                 if (notification.id != 1) { 
+                     // ID 1 is the Foreground Service (BankNotificationService)
+                     manager.cancel(notification.id)
+                 }
+             }
+
             promise.resolve(jsonString)
         } catch (e: Exception) {
             promise.reject("ERROR", e)

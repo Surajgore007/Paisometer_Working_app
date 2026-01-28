@@ -12,6 +12,7 @@ import {
   StatusBar,
   Modal,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useStore } from '../state/store';
 import { CATEGORIES } from '../../core/constants';
@@ -24,12 +25,12 @@ const { width, height } = Dimensions.get('window');
 type TimeRange = 'THIS_MONTH' | 'LAST_MONTH' | 'ALL_TIME';
 
 export const AnalyticsScreen = () => {
-  const { transactions } = useStore();
+  const { transactions, deleteTransaction } = useStore();
   const [timeRange, setTimeRange] = useState<TimeRange>('THIS_MONTH');
 
   // Drill-down State
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedSubItem, setSelectedSubItem] = useState<{ label: string, amount: number, transactions: Transaction[] } | null>(null);
+  const [selectedSubLabel, setSelectedSubLabel] = useState<string | null>(null);
 
   // ------------------------------------------------------------------
   // 1. DATA PROCESSING ENGINE
@@ -134,6 +135,34 @@ export const AnalyticsScreen = () => {
   }, [filteredTxns, selectedCategory]);
 
 
+  // Derived Active Sub-Item (Fixes stale state on delete)
+  const activeSubItem = useMemo(() => {
+    if (!selectedSubLabel || !subCategoryData) return null;
+    return subCategoryData.breakdown.find(item => item.label === selectedSubLabel) || null;
+  }, [subCategoryData, selectedSubLabel]);
+
+  // Actions
+  const handleDelete = (txn: Transaction) => {
+    Alert.alert(
+      'Delete Transaction',
+      'Are you sure you want to delete this transaction?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteTransaction(txn.id);
+            // If this was the last item, close the modal
+            if (activeSubItem && activeSubItem.transactions.length <= 1) {
+              setSelectedSubLabel(null);
+            }
+          }
+        },
+      ]
+    );
+  };
+
   // ------------------------------------------------------------------
   // UI COMPONENTS
   // ------------------------------------------------------------------
@@ -166,7 +195,7 @@ export const AnalyticsScreen = () => {
   // LEVEL 2 MODEL: SUB-CATEGORY BREAKDOWN
   const renderSubCategoryModal = () => (
     <Modal
-      visible={!!selectedCategory && !selectedSubItem}
+      visible={!!selectedCategory && !selectedSubLabel}
       animationType="slide"
       transparent={true}
       onRequestClose={() => setSelectedCategory(null)}
@@ -191,7 +220,7 @@ export const AnalyticsScreen = () => {
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.subRow}
-                onPress={() => setSelectedSubItem({ label: item.label, amount: item.amount, transactions: item.transactions })}
+                onPress={() => setSelectedSubLabel(item.label)}
               >
                 <View style={styles.subRowLeft}>
                   <Text style={styles.subLabel}>{item.label}</Text>
@@ -215,19 +244,19 @@ export const AnalyticsScreen = () => {
   // LEVEL 3 MODAL: FLOATING CARD DETAILS
   const renderTransactionDetailModal = () => (
     <Modal
-      visible={!!selectedSubItem}
+      visible={!!activeSubItem}
       animationType="fade"
       transparent={true}
-      onRequestClose={() => setSelectedSubItem(null)}
+      onRequestClose={() => setSelectedSubLabel(null)}
     >
       <View style={styles.floatingOverlay}>
         <View style={styles.floatingCard}>
           <View style={styles.cardHeader}>
             <View>
-              <Text style={styles.cardTitle}>{selectedSubItem?.label}</Text>
-              <Text style={styles.cardTotal}>{formatCurrency(selectedSubItem?.amount || 0)}</Text>
+              <Text style={styles.cardTitle}>{activeSubItem?.label}</Text>
+              <Text style={styles.cardTotal}>{formatCurrency(activeSubItem?.amount || 0)}</Text>
             </View>
-            <TouchableOpacity onPress={() => setSelectedSubItem(null)} style={styles.cardCloseBtn}>
+            <TouchableOpacity onPress={() => setSelectedSubLabel(null)} style={styles.cardCloseBtn}>
               <Text style={styles.cardCloseText}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -235,17 +264,29 @@ export const AnalyticsScreen = () => {
           <View style={styles.cardDivider} />
 
           <ScrollView style={styles.cardScroll}>
-            {selectedSubItem?.transactions.map((t, index) => (
+            {activeSubItem?.transactions.map((t, index) => (
               <View key={t.id + index} style={styles.txnRow}>
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.txnDate}>
                     {new Date(t.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </Text>
                   <Text style={styles.txnTime}>
                     {new Date(t.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                   </Text>
+                  {t.note && t.note !== 'Auto-Entry' && (
+                    <Text style={styles.txnNote}>{t.note}</Text>
+                  )}
                 </View>
-                <Text style={styles.txnAmount}>{formatCurrency(t.amount)}</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.txnAmount}>{formatCurrency(t.amount)}</Text>
+                  <TouchableOpacity
+                    style={styles.deleteBtn}
+                    onPress={() => handleDelete(t)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={styles.deleteText}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
           </ScrollView>
@@ -595,5 +636,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#000',
+  },
+  txnNote: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  deleteBtn: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  deleteText: {
+    fontSize: 16,
   },
 });

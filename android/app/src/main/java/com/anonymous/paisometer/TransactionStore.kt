@@ -10,6 +10,11 @@ object TransactionStore {
     // 1. HARDCODED FILENAME: Ensures Service and UI read the same file
     private const val PREF_NAME = "PaisometerData"
     private const val KEY_QUEUE = "sms_queue"
+    private const val KEY_LAST_TXN = "last_processed_txn"
+
+    // Deduplication Cache (In-Memory + Prefs logic)
+    private var lastAmount: Double = 0.0
+    private var lastTime: Long = 0
 
     private fun getPrefs(context: Context): SharedPreferences {
         // MODE_PRIVATE is standard, but by keeping everything in one process, 
@@ -21,6 +26,31 @@ object TransactionStore {
     fun add(context: Context, txn: ParsedTxn) {
         try {
             val prefs = getPrefs(context)
+            
+            // --- DEDUPLICATION LOGIC STARTED ---
+            // If the service was killed, restore from prefs (optional, but good for robustness)
+            if (lastTime == 0L) {
+                 lastAmount = prefs.getFloat("last_amount", 0f).toDouble()
+                 lastTime = prefs.getLong("last_time", 0)
+            }
+
+            // Check if this transaction is a duplicate of the one we just processed
+            // Criteria: Same Amount AND within 5 seconds
+            val timeDiff = kotlin.math.abs(txn.timestamp - lastTime)
+            if (txn.amount == lastAmount && timeDiff < 5000) {
+                Log.d("PaisometerNative", "Duplicate ignored: Rs ${txn.amount} within ${timeDiff}ms")
+                return
+            }
+
+            // Update Cache
+            lastAmount = txn.amount
+            lastTime = txn.timestamp
+            prefs.edit()
+                .putFloat("last_amount", lastAmount.toFloat())
+                .putLong("last_time", lastTime)
+                .apply()
+            // --- DEDUPLICATION LOGIC ENDED ---
+
             val currentJson = prefs.getString(KEY_QUEUE, "[]")
             val jsonArray = JSONArray(currentJson)
 
@@ -30,7 +60,7 @@ object TransactionStore {
                 put("amount", txn.amount)
                 put("merchant", txn.merchant) 
                 put("category", "uncategorized")       // Default category
-                put("note", txn.note ?: "Auto-detected")
+                put("note", txn.note ?: "")
                 put("timestamp", txn.timestamp)
             }
 

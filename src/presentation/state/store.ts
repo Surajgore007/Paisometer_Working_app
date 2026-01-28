@@ -95,7 +95,9 @@ export const useStore = create<AppState>((set, get) => ({
             return {
               id: p.id || `sms-${p.timestamp || ''}-${p.amount || ''}-${p.merchant || ''}`,
               amount: parseFloat(p.amount),
-              category: (p.category && p.category !== 'uncategorized') ? p.category : getCategory(p.merchant, p.note),
+              // FIX: If native is 'uncategorized' (user didn't touch notification), 
+              // default strictly to 'other' as requested, skipping the regex guess.
+              category: (p.category && p.category !== 'uncategorized') ? p.category : 'other',
               type: (p.type === 'income' || p.type === 'expense') ? p.type : 'expense',
               timestamp: new Date(p.timestamp),
               note: p.note || `Auto-Entry`,
