@@ -27,6 +27,7 @@ type TimeRange = 'THIS_MONTH' | 'LAST_MONTH' | 'ALL_TIME';
 export const AnalyticsScreen = () => {
   const { transactions, deleteTransaction } = useStore();
   const [timeRange, setTimeRange] = useState<TimeRange>('THIS_MONTH');
+  const [viewType, setViewType] = useState<'expense' | 'income'>('expense');
 
   // Drill-down State
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -42,7 +43,7 @@ export const AnalyticsScreen = () => {
     const currentYear = now.getFullYear();
 
     return transactions.filter((t) => {
-      if (t.type !== 'expense') return false;
+      if (t.type !== viewType) return false;
       const d = new Date(t.timestamp);
 
       if (timeRange === 'THIS_MONTH') {
@@ -55,7 +56,7 @@ export const AnalyticsScreen = () => {
       }
       return true; // ALL_TIME
     });
-  }, [transactions, timeRange]);
+  }, [transactions, timeRange, viewType]);
 
   // Level 1: Category Breakdown
   const categoryData = useMemo(() => {
@@ -63,32 +64,58 @@ export const AnalyticsScreen = () => {
     let totalSpent = 0;
 
     filteredTxns.forEach((t) => {
-      categoryMap[t.category] = (categoryMap[t.category] || 0) + t.amount;
+      // For Income, we group by Merchant (Source) because 'category' concept is mainly for expenses.
+      // For Expenses, we use the standard category ID.
+      const key = viewType === 'income' ? (t.merchant || 'Unknown Source') : t.category;
+
+      categoryMap[key] = (categoryMap[key] || 0) + t.amount;
       totalSpent += t.amount;
     });
 
     const breakdown = Object.keys(categoryMap)
-      .map((catId) => {
-        const amount = categoryMap[catId];
-        const categoryConfig = CATEGORIES.find((c) => c.id === catId);
+      .map((key) => {
+        const amount = categoryMap[key];
+
+        let label = key;
+        let emoji = '💰';
+
+        if (viewType === 'expense') {
+          const categoryConfig = CATEGORIES.find((c) => c.id === key);
+          label = categoryConfig?.label || 'Other';
+          emoji = categoryConfig?.emoji || '🏷️';
+        } else {
+          // Income Emoji Logic
+          emoji = '💵';
+          if (key.toLowerCase().includes('salary')) emoji = '💼';
+          if (key.toLowerCase().includes('interest')) emoji = '🏦';
+          if (key.toLowerCase().includes('refund')) emoji = '↩️';
+          if (key.toLowerCase().includes('upi')) emoji = '📱';
+        }
+
         return {
-          id: catId,
-          label: categoryConfig?.label || 'Other',
-          emoji: categoryConfig?.emoji || '🏷️',
+          id: key,
+          label,
+          emoji,
           amount,
           percentage: totalSpent === 0 ? 0 : (amount / totalSpent) * 100,
         };
       })
       .sort((a, b) => b.amount - a.amount);
 
-    return { totalSpent, breakdown };
-  }, [filteredTxns]);
+    return { total: totalSpent, breakdown };
+  }, [filteredTxns, viewType]);
 
   // Level 2: Sub-Category Breakdown (Grouping by Note/Merchant)
   const subCategoryData = useMemo(() => {
     if (!selectedCategory) return null;
 
-    const txnsInCategory = filteredTxns.filter(t => t.category === selectedCategory);
+    const txnsInCategory = filteredTxns.filter(t => {
+      if (viewType === 'income') {
+        const key = t.merchant || 'Unknown Source';
+        return key === selectedCategory;
+      }
+      return t.category === selectedCategory;
+    });
     const groupMap: Record<string, { amount: number; txns: Transaction[] }> = {};
     let categoryTotal = 0;
 
@@ -301,6 +328,23 @@ export const AnalyticsScreen = () => {
       {/* Header Area */}
       <View style={styles.header}>
         <Text style={styles.title}>ANALYTICS</Text>
+
+        {/* TYPE TOGGLE (Income / Expense) */}
+        <View style={styles.toggleContainer}>
+          <TouchableOpacity
+            style={[styles.toggleBtn, viewType === 'expense' && styles.toggleBtnActive]}
+            onPress={() => setViewType('expense')}
+          >
+            <Text style={[styles.toggleText, viewType === 'expense' && styles.toggleTextActive]}>Expenses</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleBtn, viewType === 'income' && styles.toggleBtnActive]}
+            onPress={() => setViewType('income')}
+          >
+            <Text style={[styles.toggleText, viewType === 'income' && styles.toggleTextActive]}>Income</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.filterContainer}>
           {(['THIS_MONTH', 'LAST_MONTH', 'ALL_TIME'] as TimeRange[]).map((range) => (
             <TouchableOpacity
@@ -316,14 +360,21 @@ export const AnalyticsScreen = () => {
         </View>
       </View>
 
-      {/* Hero: Total Spent */}
+      {/* Hero: Total Spent/Earned */}
       <View style={styles.heroSection}>
-        <Text style={styles.heroLabel}>Total Spent</Text>
-        <Text style={styles.heroAmount}>{formatCurrency(categoryData.totalSpent)}</Text>
+        <Text style={styles.heroLabel}>{viewType === 'income' ? 'Total Earned' : 'Total Spent'}</Text>
+        <Text
+          style={[styles.heroAmount, viewType === 'income' && { color: '#22C55E' }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {viewType === 'income' ? '+' : ''}{formatCurrency(categoryData.total)}
+        </Text>
       </View>
 
       {/* Level 1: Category List */}
       <FlatList
+        key={`${viewType}-${timeRange}`} // FORCE REFRESH on filter change
         data={categoryData.breakdown}
         renderItem={renderCategoryRow}
         keyExtractor={(item) => item.id}
@@ -358,7 +409,35 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.5,
     color: '#9CA3AF',
+    marginBottom: 8,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 2,
     marginBottom: 16,
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  toggleBtnActive: {
+    backgroundColor: '#FFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF',
+  },
+  toggleTextActive: {
+    color: '#000',
   },
   filterContainer: {
     flexDirection: 'row',

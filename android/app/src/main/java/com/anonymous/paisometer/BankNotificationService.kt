@@ -7,6 +7,7 @@ import android.service.notification.StatusBarNotification
 import android.util.Log
 import android.app.PendingIntent
 import android.app.RemoteInput
+import android.provider.Telephony
 import kotlin.random.Random
 
 class BankNotificationService : NotificationListenerService() {
@@ -24,11 +25,29 @@ class BankNotificationService : NotificationListenerService() {
 
         val packageName = sbn.packageName
 
-        // Avoid self-notifications (rare) and obvious noise sources.
-        // IMPORTANT: We do NOT rely on a strict allowlist because many banks/OTPs
-        // come via different apps and notification wrappers. We instead rely on
-        // TxnParser's trigger + amount/type detection.
-        if (packageName == applicationContext.packageName) return
+            // INTELLIGENT FILTER: Only process notifications from the User's Default SMS App.
+            // This filters out WhatsApp, GPay, Uber, etc. without needing a hardcoded strict list.
+            val defaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(applicationContext)
+
+            // Dynamic Check:
+            // 1. If defaultSmsPackage is found (99% of phones), STRICTLY matching it.
+            // 2. If defaultSmsPackage is null (rare cases/tablets), we fall back to allowing "com.google.android.apps.messaging" or standard list safely.
+            if (defaultSmsPackage != null) {
+                if (packageName != defaultSmsPackage) {
+                    // It's not the SMS app -> Ignore it silently.
+                    return
+                }
+            } else {
+                // FALLBACK for weird devices: Allow Google Messages & Samsung Messages (Most common)
+                // This prevents breaking the app if the API returns null.
+                if (packageName != "com.google.android.apps.messaging" && 
+                    packageName != "com.samsung.android.messaging" && 
+                    packageName != "com.android.mms") {
+                    return
+                }
+            }
+
+
 
         // 2. Extract Content safely
         val extras = sbn.notification.extras

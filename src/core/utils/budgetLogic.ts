@@ -58,9 +58,29 @@ export const calculateBudgetMetrics = (
             .reduce((sum, t) => sum + t.amount, 0);
     }
 
-    // 3. The Formula: (Net - Spent) / Days Left
-    // Rolls over unspent money to future days.
-    const remainingRealDisposable = Math.max(0, disposableIncome - spentSoFar);
+    // 3. The Formula: (Net Pool / Days Left)
+
+    // Calculate total income received during the period (to add to the pool)
+    let receivedIncome = 0;
+    if (budgetMode === 'lumpsum' && endOfBudgetCycle) {
+        receivedIncome = transactions
+            .filter(t => t.type === 'income')
+            .reduce((sum, t) => sum + t.amount, 0);
+    } else {
+        receivedIncome = transactions
+            .filter(t => {
+                if (t.type !== 'income') return false;
+                const d = new Date(t.timestamp);
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            })
+            .reduce((sum, t) => sum + t.amount, 0);
+    }
+
+    // New Pool Calculation:
+    // (Corpus/Salary) + (Extra Income Received) - (Fixed Bills) - (Savings Goal) - (Amount Spent)
+    const totalAvailablePool = monthlyIncome + receivedIncome - (fixedObligations || 0) - savingsGoalAmount;
+
+    const remainingRealDisposable = Math.max(0, totalAvailablePool - spentSoFar);
     const dailyBudget = remainingRealDisposable / daysRemaining;
 
     return {

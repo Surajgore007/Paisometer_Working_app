@@ -37,6 +37,7 @@ interface AppState {
   todaySpent: number;
   dailyBudget: number;
   todayRemaining: number;
+  daysRemaining: number; // NEW
   isOverBudget: boolean;
   currentBalance: number;
 
@@ -68,6 +69,7 @@ export const useStore = create<AppState>((set, get) => ({
   todaySpent: 0,
   dailyBudget: 0,
   todayRemaining: 0,
+  daysRemaining: 30, // Default Safety
   isOverBudget: false,
   currentBalance: 0,
   isLoading: false,
@@ -152,11 +154,12 @@ export const useStore = create<AppState>((set, get) => ({
         .filter(t => t.type === 'income')
         .reduce((sum, t) => sum + t.amount, 0);
 
-      // Net spent (expense - income) for the day
-      const todaySpent = todayExpenses - todayIncome;
+      // Spent is purely EXPENSES. 
+      // Income increases the 'dailyBudget' via the pool, so we don't subtract it here.
+      const todaySpent = todayExpenses;
 
       // USE CENTRALIZED LOGIC
-      const { dailyBudget } = calculateBudgetMetrics(finalSettings, allTransactions);
+      const { dailyBudget, daysRemaining } = calculateBudgetMetrics(finalSettings, allTransactions);
 
       const todayRemaining = dailyBudget - todaySpent;
 
@@ -172,6 +175,7 @@ export const useStore = create<AppState>((set, get) => ({
         todayTransactions: todayTxns,
         todaySpent,
         dailyBudget,
+        daysRemaining: daysRemaining || 30,
         todayRemaining,
         isOverBudget: todayRemaining < 0,
         currentBalance,

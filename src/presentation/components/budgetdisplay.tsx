@@ -8,6 +8,7 @@ interface BudgetDisplayProps {
   remaining: number;
   total: number;
   spent: number;
+  remainingDays: number; // NEW
   isOverBudget: boolean;
 }
 
@@ -15,12 +16,13 @@ export const BudgetDisplay: React.FC<BudgetDisplayProps> = ({
   remaining,
   total,
   spent,
+  remainingDays,
   isOverBudget,
 }) => {
   // Calculate percentage for the progress bar
   const spentPercentage =
     total > 0 ? Math.min((Math.abs(spent) / total) * 100, 100) : 0;
-  
+
   // Status logic for color accents (kept minimal for B&W theme)
   const isWarning = !isOverBudget && remaining < total * 0.2;
 
@@ -32,12 +34,12 @@ export const BudgetDisplay: React.FC<BudgetDisplayProps> = ({
         3. Deep, soft shadow (ambient) + Sharp shadow (directional)
       */}
       <View style={styles.glassCard}>
-        
+
         {/* Top Section: Status Label */}
         <View style={styles.headerRow}>
           <Text style={styles.label}>DAILY BUDGET</Text>
           <View style={[
-            styles.statusIndicator, 
+            styles.statusIndicator,
             { backgroundColor: isOverBudget ? '#000' : isWarning ? '#666' : '#E5E5E5' }
           ]}>
             <Text style={[
@@ -65,15 +67,15 @@ export const BudgetDisplay: React.FC<BudgetDisplayProps> = ({
 
         {/* Bottom Section: Progress & Stats */}
         <View style={styles.footer}>
-          
+
           {/* Custom Minimalist Progress Bar */}
           <View style={styles.progressContainer}>
             <View style={styles.progressBarBg}>
-              <View 
+              <View
                 style={[
-                  styles.progressBarFill, 
+                  styles.progressBarFill,
                   { width: `${spentPercentage}%` }
-                ]} 
+                ]}
               />
             </View>
           </View>
@@ -88,6 +90,11 @@ export const BudgetDisplay: React.FC<BudgetDisplayProps> = ({
             <View style={styles.statItem}>
               <Text style={styles.statLabel}>TOTAL</Text>
               <Text style={styles.statValue}>{formatCurrency(total)}</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>DAYS LEFT</Text>
+              <Text style={styles.statValue}>{remainingDays}</Text>
             </View>
           </View>
         </View>
@@ -117,7 +124,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.06,
     shadowRadius: 32,
-    elevation: 8, 
+    elevation: 8,
   },
   headerRow: {
     flexDirection: 'row',

@@ -26,6 +26,7 @@ export const TodayScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     dailyBudget,
     todaySpent,
     todayRemaining,
+    daysRemaining, // NEW
     isOverBudget,
     isLoading,
     error,
@@ -186,6 +187,7 @@ export const TodayScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         remaining={todayRemaining}
         total={dailyBudget}
         spent={todaySpent}
+        remainingDays={daysRemaining}
         isOverBudget={isOverBudget}
       />
 
