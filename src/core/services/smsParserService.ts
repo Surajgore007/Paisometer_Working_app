@@ -49,6 +49,16 @@ export const SmsParserService = {
   },
 
   /**
+   * Syncs the current Daily Limit and Spent Amount to Native SharedPrefs.
+   * This allows the Background Service to trigger "Smart Alerts" instantly.
+   */
+  setBudgetContext: (dailyLimit: number, currentSpent: number) => {
+    if (Platform.OS === 'android' && SMSParser?.setBudgetContext) {
+      SMSParser.setBudgetContext(dailyLimit, currentSpent);
+    }
+  },
+
+  /**
    * Checks the native queue for any transactions.
    * FIX: Added JSON parsing to handle the raw string from NativeModules.
    */

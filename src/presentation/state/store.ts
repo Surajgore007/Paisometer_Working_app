@@ -182,6 +182,10 @@ export const useStore = create<AppState>((set, get) => ({
         isLoading: false,
       });
 
+      // SYNC TO NATIVE FOR ALERTS
+      SmsParserService.setBudgetContext(dailyBudget, todaySpent);
+
+
     } catch (error) {
       console.error(error);
       set({ error: 'Failed to load data', isLoading: false });

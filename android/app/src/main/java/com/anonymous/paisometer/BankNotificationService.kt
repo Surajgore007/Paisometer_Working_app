@@ -8,6 +8,8 @@ import android.util.Log
 import android.app.PendingIntent
 import android.app.RemoteInput
 import android.provider.Telephony
+import android.content.Context
+import android.graphics.BitmapFactory
 import kotlin.random.Random
 
 class BankNotificationService : NotificationListenerService() {
@@ -102,6 +104,9 @@ class BankNotificationService : NotificationListenerService() {
                 // 5. Show Interactive Notification
                 if (txn.type != "income") {
                     showCategorizationNotification(txn)
+                    
+                    // --- SMART ALERTS (PsyOps) ---
+                    checkBudgetThresholds(txn.amount)
                 }
             }
         }
@@ -142,6 +147,17 @@ class BankNotificationService : NotificationListenerService() {
             )
             val manager = getSystemService(android.app.NotificationManager::class.java)
             manager.createNotificationChannel(serviceChannel)
+
+            // CHANNEL 2: ALERT CHANNEL (For Urgent Budget Warnings)
+            // IMPORTANCE_HIGH = Heads-up Notification (Popup) + Sound
+            val alertChannel = android.app.NotificationChannel(
+                "PAISO_ALERTS_ID",
+                "Paisometer Budget Alerts",
+                android.app.NotificationManager.IMPORTANCE_HIGH
+            )
+            alertChannel.description = "Urgent warnings when daily limits are breached"
+            alertChannel.enableVibration(true)
+            manager.createNotificationChannel(alertChannel)
         }
     }
 
@@ -155,7 +171,8 @@ class BankNotificationService : NotificationListenerService() {
         return android.app.Notification.Builder(this, "PAISO_CHANNEL_ID")
             .setContentTitle("Paisometer is Active")
             .setContentText("Listening for financial SMS...")
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.mipmap.ic_stat_paiso)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher))
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
@@ -194,7 +211,8 @@ class BankNotificationService : NotificationListenerService() {
         val notification = Notification.Builder(this, "PAISO_CHANNEL_ID")
             .setContentTitle("New Transaction: ₹${txn.amount}")
             .setContentText("at ${txn.merchant}. Categorize it?")
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.mipmap.ic_stat_paiso)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher))
             .setAutoCancel(true)
             .addAction(createAction("🍔 Food", "food"))
             .addAction(createAction("🚕 Travel", "transport"))
@@ -203,6 +221,78 @@ class BankNotificationService : NotificationListenerService() {
 
         val manager = getSystemService(android.app.NotificationManager::class.java)
         manager.notify(notificationId, notification)
+    }
+
+    /**
+     * PSYCHOLOGICAL ALERTS:
+     * Reads the synced "Budget Context" (Daily Limit & Current Spent) and triggers warning if thresholds are crossed.
+     */
+    private fun checkBudgetThresholds(newExpenseAmount: Double) {
+        try {
+            val prefs = getSharedPreferences("PaisoBudget", Context.MODE_PRIVATE)
+            val dailyLimit = prefs.getFloat("DAILY_LIMIT", 0f).toDouble()
+            val previouslySpent = prefs.getFloat("CURRENT_SPENT", 0f).toDouble()
+
+            if (dailyLimit <= 0) return // No context available
+
+            val totalSpentAfterTxn = previouslySpent + newExpenseAmount
+            val ratio = totalSpentAfterTxn / dailyLimit
+
+            // We also need the "Old Ratio" to ensure we only trigger the alert ONCE when crossing the line
+            // otherwise every small txn after 70% would spam the user.
+            val oldRatio = previouslySpent / dailyLimit
+
+            var title: String? = null
+            var body: String? = null
+
+            // THRESHOLD 1: 70% (Warning)
+            if (ratio >= 0.7 && oldRatio < 0.7) {
+                val remaining = dailyLimit - totalSpentAfterTxn
+                title = "⚠️ CAUTION: 70% Burnt"
+                body = "You have only ₹${remaining.toInt()} left. Tread carefully."
+            }
+
+            // THRESHOLD 2: 100% (Limit Reached)
+            else if (ratio >= 1.0 && oldRatio < 1.0) {
+                title = "🛑 STOP. Daily Limit Reached."
+                body = "Not a single rupee more. Close your wallet."
+            }
+
+            // THRESHOLD 3: > 100% (Overdraft - Every txn triggers this now)
+            else if (ratio > 1.0 && oldRatio >= 1.0) {
+                 // For overdraft, we might want to nag them on every significant txn, or maybe slightly randomized?
+                 // Let's nag them.
+                 val extra = totalSpentAfterTxn - dailyLimit
+                 title = "💀 CRITICAL FAILURE"
+                 body = "You are bleeding money (₹${extra.toInt()} over). Future you is suffering."
+            }
+
+            if (title != null) {
+                // Use the ALERT Channel (High Priority)
+                val notification = Notification.Builder(this, "PAISO_ALERTS_ID")
+                    .setContentTitle(title)
+                    .setContentText(body)
+                    .setSmallIcon(R.mipmap.ic_stat_paiso)
+                    .setLargeIcon(BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher))
+                    .setAutoCancel(true)
+                    .setPriority(Notification.PRIORITY_HIGH) // For older Androids
+                    .setCategory(Notification.CATEGORY_ALARM) // Treat as critical
+                    .build()
+
+                val manager = getSystemService(android.app.NotificationManager::class.java)
+                manager.notify(Random.nextInt(), notification)
+                
+                // Update the Local Prefs immediately so next txn sees new state (Optimistic Update)
+                // This prevents race conditions if the app is killed and doesn't sync back immediately.
+                with (prefs.edit()) {
+                    putFloat("CURRENT_SPENT", totalSpentAfterTxn.toFloat())
+                    apply()
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.e("PaisometerNative", "Failed to check budget thresholds", e)
+        }
     }
 
     override fun onListenerConnected() {

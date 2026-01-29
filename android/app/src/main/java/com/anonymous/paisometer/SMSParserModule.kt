@@ -76,4 +76,20 @@ class SMSParserModule(private val reactContext: ReactApplicationContext) : React
             Log.e("SMSParser", "Failed to start foreground service", e)
         }
     }
+
+    // 4. Sync Budget Context (For Smart Alerts)
+    @ReactMethod
+    fun setBudgetContext(dailyLimit: Double, currentSpent: Double) {
+        try {
+            val prefs = reactContext.getSharedPreferences("PaisoBudget", Context.MODE_PRIVATE)
+            with (prefs.edit()) {
+                putFloat("DAILY_LIMIT", dailyLimit.toFloat())
+                putFloat("CURRENT_SPENT", currentSpent.toFloat())
+                apply()
+            }
+            Log.d("PaisometerNative", "Budget Context Synced: Limit=$dailyLimit, Spent=$currentSpent")
+        } catch (e: Exception) {
+            Log.e("SMSParser", "Failed to sync budget context", e)
+        }
+    }
 }
