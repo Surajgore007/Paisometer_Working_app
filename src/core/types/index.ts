@@ -2,7 +2,7 @@
 
 export type TransactionType = 'expense' | 'income';
 
-export type Category = 
+export type Category =
   | 'food'
   | 'transport'
   | 'bills'
@@ -38,8 +38,11 @@ export type Budget = {
 };
 
 export type AppSettings = {
-  monthlyIncome: number;
+  budgetMode: 'monthly' | 'lumpsum'; // New
+  monthlyIncome: number; // Used as 'Total Corpus' in lumpsum mode
+  fixedObligations: number;
   savingsGoalAmount: number;
+  endOfBudgetCycle: Date | null; // For lumpsum mode
   currentGoal: Goal | null;
   onboardingCompleted: boolean;
   initialBalance: number;

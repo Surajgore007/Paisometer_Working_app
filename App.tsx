@@ -4,9 +4,10 @@ import { StatusBar } from 'expo-status-bar';
 import { useStore } from './src/presentation/state/store';
 import { RootNavigator } from './src/presentation/navigation/RootNavigator';
 import { SmsParserService } from './src/core/services/smsParserService';
+import { SmartOnboardingModal } from './src/presentation/components/SmartOnboardingModal';
 
 export default function App() {
-  const { loadData } = useStore();
+  const { loadData, settings } = useStore();
   const appState = useRef(AppState.currentState);
 
   // Load initial data when app starts & on resume
@@ -34,6 +35,7 @@ export default function App() {
   return (
     <>
       <RootNavigator />
+      {!settings.onboardingCompleted && <SmartOnboardingModal />}
       <StatusBar style="auto" />
     </>
   );

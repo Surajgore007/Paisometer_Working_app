@@ -15,8 +15,12 @@ class BankNotificationService : NotificationListenerService() {
     private var lastTxnTime: Long = 0
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        // Safety check: ensure notification is valid
-        if (sbn == null) return
+        try {
+            // Safety check: ensure notification is valid
+            if (sbn == null) return
+            
+            // DEBUG LOG: Prove we received something
+            Log.d("PaisometerNative", "Received notification from package: ${sbn.packageName}")
 
         val packageName = sbn.packageName
 
@@ -81,6 +85,9 @@ class BankNotificationService : NotificationListenerService() {
                     showCategorizationNotification(txn)
                 }
             }
+        }
+        } catch (e: Exception) {
+            Log.e("PaisometerNative", "CRASH in onNotificationPosted", e)
         }
     }
 

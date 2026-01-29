@@ -16,12 +16,14 @@ import {
 } from 'react-native';
 import { useStore } from '../state/store';
 import { formatCurrency } from '../../core/utils';
+import { calculateBudgetMetrics } from '../../core/utils/budgetLogic';
 import { DEFAULTS } from '../../core/constants';
+import { AppSettings } from '../../core/types';
 
 export const SettingsScreen: React.FC<{ navigation: any }> = ({
   navigation,
 }) => {
-  const { settings, updateSettings, isLoading } = useStore();
+  const { settings, updateSettings, isLoading, transactions } = useStore();
 
   const [monthlyIncome, setMonthlyIncome] = useState(
     settings.monthlyIncome.toString()
@@ -29,19 +31,28 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({
   const [savingsGoal, setSavingsGoal] = useState(
     settings.savingsGoalAmount.toString()
   );
+  const [fixedObligations, setFixedObligations] = useState(
+    (settings.fixedObligations || 0).toString()
+  );
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     settings.notificationsEnabled
   );
 
-  const spendablePerMonth = Math.max(
-    0,
-    parseFloat(monthlyIncome) - parseFloat(savingsGoal)
-  );
-  const dailyBudget = spendablePerMonth / 30;
+
+  // REAL-TIME PREVIEW CALCULATION
+  const previewSettings: AppSettings = {
+    ...settings,
+    monthlyIncome: parseFloat(monthlyIncome) || 0,
+    fixedObligations: parseFloat(fixedObligations) || 0,
+    savingsGoalAmount: parseFloat(savingsGoal) || 0,
+  };
+
+  const { dailyBudget, disposableIncome } = calculateBudgetMetrics(previewSettings, transactions);
 
   const handleSave = async () => {
     const income = parseFloat(monthlyIncome);
     const goal = parseFloat(savingsGoal);
+    const fixed = parseFloat(fixedObligations);
 
     if (income <= 0) {
       Alert.alert('Invalid Input', 'Monthly income must be greater than 0');
@@ -59,6 +70,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({
     try {
       await updateSettings({
         monthlyIncome: income,
+        fixedObligations: fixed,
         savingsGoalAmount: goal,
         notificationsEnabled,
       });
@@ -74,7 +86,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({
       'Factory Reset',
       'This will restore default budget values. Are you sure?',
       [
-        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+        { text: 'Cancel', onPress: () => { }, style: 'cancel' },
         {
           text: 'Reset',
           style: 'destructive',
@@ -95,7 +107,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
           hitSlop={{ top: 10, bottom: 10, left: 20, right: 20 }}
@@ -107,16 +119,29 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
+
+        {/* Smart Actions */}
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.wizardCard}
+            onPress={async () => {
+              await updateSettings({ onboardingCompleted: false });
+            }}
+          >
+            <Text style={styles.wizardTitle}>✨ Run Smart Setup</Text>
+            <Text style={styles.wizardSubtitle}>Let the wizard calculate your budget for you.</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Section: Financials */}
         <View style={styles.section}>
-          <Text style={styles.sectionHeader}>FINANCIAL PARAMETERS</Text>
-          
+          <Text style={styles.sectionHeader}>MANUAL OVERRIDE</Text>
+
           {/* Monthly Income Input */}
           <View style={styles.inputRow}>
             <View style={styles.labelContainer}>
-              <Text style={styles.rowLabel}>Monthly Income</Text>
-              <Text style={styles.rowSubtext}>Total earnings</Text>
+              <Text style={styles.rowLabel}>{settings.budgetMode === 'lumpsum' ? 'Total Safe Cash' : 'Monthly Income'}</Text>
+              <Text style={styles.rowSubtext}>{settings.budgetMode === 'lumpsum' ? 'Corpus available' : 'Total earnings'}</Text>
             </View>
             <View style={styles.inputWrapper}>
               <Text style={styles.currencyPrefix}>₹</Text>
@@ -135,11 +160,34 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({
 
           <View style={styles.divider} />
 
+          {/* Fixed Obligations Input */}
+          <View style={styles.inputRow}>
+            <View style={styles.labelContainer}>
+              <Text style={styles.rowLabel}>Fixed Obligations</Text>
+              <Text style={styles.rowSubtext}>Rent, EMI, Bills</Text>
+            </View>
+            <View style={styles.inputWrapper}>
+              <Text style={styles.currencyPrefix}>₹</Text>
+              <TextInput
+                style={styles.numberInput}
+                placeholder="0"
+                placeholderTextColor="#D1D5DB"
+                value={fixedObligations}
+                onChangeText={setFixedObligations}
+                keyboardType="decimal-pad"
+                editable={!isLoading}
+                selectTextOnFocus
+              />
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
           {/* Savings Goal Input */}
           <View style={styles.inputRow}>
             <View style={styles.labelContainer}>
-              <Text style={styles.rowLabel}>Savings Goal</Text>
-              <Text style={styles.rowSubtext}>Target reserve</Text>
+              <Text style={styles.rowLabel}>{settings.budgetMode === 'lumpsum' ? 'Safety Buffer' : 'Savings Goal'}</Text>
+              <Text style={styles.rowSubtext}>{settings.budgetMode === 'lumpsum' ? 'Do not touch' : 'Target reserve'}</Text>
             </View>
             <View style={styles.inputWrapper}>
               <Text style={styles.currencyPrefix}>₹</Text>
@@ -162,18 +210,18 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>NET SPENDABLE</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(spendablePerMonth)}</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(disposableIncome)}</Text>
             </View>
-            
+
             <View style={styles.summaryDivider} />
-            
+
             <View style={styles.summaryRowHighlight}>
               <Text style={styles.summaryLabelHighlight}>DAILY BUDGET</Text>
               <Text style={styles.summaryValueHighlight}>{formatCurrency(dailyBudget)}</Text>
             </View>
           </View>
           <Text style={styles.summaryCaption}>
-            Calculated based on a 30-day standard cycle.
+            Calculated based on {settings.budgetMode === 'lumpsum' ? 'remaining days' : '30-day standard cycle'}.
           </Text>
         </View>
 
@@ -265,7 +313,7 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40,
   },
-  
+
   // Sections
   section: {
     marginTop: 32,
@@ -421,7 +469,7 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-  
+
   footer: {
     marginTop: 40,
     alignItems: 'center',
@@ -431,5 +479,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#E5E7EB',
     letterSpacing: 2,
+  },
+  wizardCard: {
+    backgroundColor: '#000',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  wizardTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  wizardSubtitle: {
+    color: '#9CA3AF', // Gray-400
+    fontSize: 12,
   },
 });

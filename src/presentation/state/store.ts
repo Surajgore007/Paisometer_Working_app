@@ -6,6 +6,8 @@ import { TransactionRepository } from '../../data/repositories/transactionreposi
 import { AddTransactionUseCase } from '../../domain/usecases/addtransaction';
 import { EditTransactionUseCase } from '../../domain/usecases/edittransaction';
 import { getStartOfDay, getEndOfDay } from '../../core/utils';
+import { calculateBudgetMetrics } from '../../core/utils/budgetLogic';
+import { calculateWalletBalance } from '../../core/utils/walletLogic';
 
 const settingsRepo = new SettingsRepository();
 const transactionRepo = new TransactionRepository();
@@ -52,8 +54,11 @@ interface AppState {
 export const useStore = create<AppState>((set, get) => ({
   transactions: [],
   settings: {
+    budgetMode: 'monthly',
     monthlyIncome: 20000,
+    fixedObligations: 0,
     savingsGoalAmount: 5000,
+    endOfBudgetCycle: null,
     currentGoal: null,
     onboardingCompleted: false,
     notificationsEnabled: false,
@@ -150,13 +155,16 @@ export const useStore = create<AppState>((set, get) => ({
       // Net spent (expense - income) for the day
       const todaySpent = todayExpenses - todayIncome;
 
-      const disposableIncome = Math.max(0, finalSettings.monthlyIncome - finalSettings.savingsGoalAmount);
-      const dailyBudget = disposableIncome / 30;
+      // USE CENTRALIZED LOGIC
+      const { dailyBudget } = calculateBudgetMetrics(finalSettings, allTransactions);
+
       const todayRemaining = dailyBudget - todaySpent;
 
       const totalIncome = allTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
       const totalExpense = allTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-      const currentBalance = (finalSettings.initialBalance || 0) + totalIncome - totalExpense;
+
+      // USE CENTRALIZED WALLET LOGIC
+      const currentBalance = calculateWalletBalance(finalSettings, allTransactions);
 
       set({
         transactions: allTransactions,
