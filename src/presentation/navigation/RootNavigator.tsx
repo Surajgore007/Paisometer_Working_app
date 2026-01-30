@@ -5,13 +5,15 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions } from '
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LayoutDashboard, BarChart3, Plus, WalletCards, Settings } from 'lucide-react-native';
 
 // Screens
 import { TodayScreen } from '../screens/TodayScreen';
 import { AddTransactionScreen } from '../screens/AddTransactionScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { GoalScreen } from '../screens/GoalScreen';
-import { AnalyticsScreen } from '../screens/AnalyticsScreen'; // Import the new screen
+import { AnalyticsScreen } from '../screens/AnalyticsScreen';
 import { WalletScreen } from '../screens/WalletScreen';
 
 const Stack = createNativeStackNavigator();
@@ -19,7 +21,6 @@ const Tab = createBottomTabNavigator();
 
 /**
  * Main Stack - Today
- * (Kept Settings here too so the header gear icon still works if clicked)
  */
 const MainStackNavigator = () => (
   <Stack.Navigator
@@ -57,7 +58,7 @@ const CustomCenterButton = ({ children, onPress }: any) => (
   <View style={styles.centerContainer}>
     {/* The Curve/Hill Background */}
     <View style={styles.customCurve} />
-    
+
     {/* The Floating Button */}
     <TouchableOpacity
       style={styles.floatingButton}
@@ -96,12 +97,22 @@ export const RootNavigator = () => {
  * Tab Navigator Content
  */
 const TabNavigatorContent = () => {
+  const insets = useSafeAreaInsets();
+  // Dynamic Tab Bar Height based on Safe Area
+  const tabBarHeight = Platform.OS === 'ios' ? 88 : 65 + insets.bottom;
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarShowLabel: false, // We render custom labels/icons
-        tabBarStyle: styles.tabBar,
+        tabBarShowLabel: false,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            height: tabBarHeight,
+            paddingBottom: Platform.OS === 'ios' ? 25 : insets.bottom + 5
+          }
+        ],
       }}
     >
       {/* 1. LEFT TAB: TODAY */}
@@ -111,9 +122,11 @@ const TabNavigatorContent = () => {
         options={{
           tabBarIcon: ({ focused }) => (
             <View style={styles.iconContainer}>
-              <Text style={[styles.iconText, focused && styles.iconActive]}>
-                {focused ? '✦' : '✧'} 
-              </Text>
+              <LayoutDashboard
+                size={24}
+                color={focused ? '#000000' : '#9CA3AF'}
+                strokeWidth={focused ? 2.5 : 2}
+              />
               <Text style={[styles.labelText, focused && styles.labelActive]}>
                 TODAY
               </Text>
@@ -122,17 +135,18 @@ const TabNavigatorContent = () => {
         }}
       />
 
-      {/* 2. LEFT-CENTER TAB: ANALYTICS (STATS) */}
+      {/* 2. LEFT-CENTER TAB: ANALYTICS */}
       <Tab.Screen
         name="AnalyticsTab"
         component={AnalyticsScreen}
         options={{
           tabBarIcon: ({ focused }) => (
             <View style={styles.iconContainer}>
-              {/* Geometric Square Icon for Stats */}
-              <Text style={[styles.iconText, focused && styles.iconActive]}>
-                {focused ? '▤' : '◻'}
-              </Text>
+              <BarChart3
+                size={24}
+                color={focused ? '#000000' : '#9CA3AF'}
+                strokeWidth={focused ? 2.5 : 2}
+              />
               <Text style={[styles.labelText, focused && styles.labelActive]}>
                 STATS
               </Text>
@@ -141,7 +155,7 @@ const TabNavigatorContent = () => {
         }}
       />
 
-      {/* 3. CENTER TAB: ADD (Curved Button) */}
+      {/* 3. CENTER TAB: ADD */}
       <Tab.Screen
         name="AddPlaceholder"
         component={AddPlaceholder}
@@ -151,41 +165,45 @@ const TabNavigatorContent = () => {
               {...props}
               onPress={() => navigation.navigate('AddTransactionModal')}
             >
-              <Text style={styles.plusIcon}>+</Text>
+              <Plus size={32} color="#FFFFFF" strokeWidth={2.5} />
             </CustomCenterButton>
           ),
         })}
       />
 
-      {/* 4. RIGHT-CENTER TAB: WALLET (Replaces Goals) */}
+      {/* 4. RIGHT-CENTER TAB: WALLET */}
       <Tab.Screen
         name="WalletTab"
-        component={WalletScreen} // <--- Make sure to import WalletScreen
+        component={WalletScreen}
         options={{
           tabBarIcon: ({ focused }) => (
             <View style={styles.iconContainer}>
-              {/* Wallet/Card Icon */}
-              <Text style={[styles.iconText, focused && styles.iconActive]}>
-                {focused ? '▣' : '▢'}
-              </Text>
+              <WalletCards
+                size={24}
+                color={focused ? '#000000' : '#9CA3AF'}
+                strokeWidth={focused ? 2.5 : 2}
+              />
               <Text style={[styles.labelText, focused && styles.labelActive]}>
                 WALLET
               </Text>
             </View>
           ),
+          // Ensure label matches user expectation (Wallet, not "Waller")
         }}
       />
 
-      {/* 5. RIGHT TAB: SETTINGS (Added to balance the layout) */}
+      {/* 5. RIGHT TAB: SETTINGS */}
       <Tab.Screen
         name="SettingsTab"
         component={SettingsScreen}
         options={{
           tabBarIcon: ({ focused }) => (
             <View style={styles.iconContainer}>
-              <Text style={[styles.iconText, focused && styles.iconActive]}>
-                {focused ? '●' : '○'}
-              </Text>
+              <Settings
+                size={24}
+                color={focused ? '#000000' : '#9CA3AF'}
+                strokeWidth={focused ? 2.5 : 2}
+              />
               <Text style={[styles.labelText, focused && styles.labelActive]}>
                 MENU
               </Text>
@@ -201,7 +219,6 @@ const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: '#FFFFFF',
     borderTopWidth: 0,
-    height: Platform.OS === 'ios' ? 88 : 70,
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -211,29 +228,22 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.04,
     shadowRadius: 10,
-    elevation: 10,
+    elevation: 8,
   },
-  
+
   // Icon Styling
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    top: Platform.OS === 'ios' ? 10 : 0,
-  },
-  iconText: {
-    fontSize: 20, // Slightly smaller to fit 5 items
-    color: '#9CA3AF', // Inactive Grey
-    marginBottom: 3,
-    fontWeight: '300',
-  },
-  iconActive: {
-    color: '#000000', // Active Black
-    fontWeight: '500',
+    top: Platform.OS === 'ios' ? 0 : 0, // Reset manual top adjust, rely on flex/padding
+    height: '100%',
+    paddingTop: 8,
   },
   labelText: {
     fontSize: 9,
     fontWeight: '600',
     color: '#9CA3AF',
+    marginTop: 4,
     letterSpacing: 0.5,
   },
   labelActive: {
@@ -242,9 +252,9 @@ const styles = StyleSheet.create({
 
   // Center Button Logic
   centerContainer: {
-    width: 65, // Slightly narrower for 5-tab layout
+    width: 65,
     height: 75,
-    top: -25, 
+    top: -25,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -254,7 +264,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 40,
     backgroundColor: '#FFFFFF',
-    bottom: 10, 
+    bottom: 10,
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
     shadowColor: '#000',
@@ -268,7 +278,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#000000', 
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -282,11 +292,5 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  plusIcon: {
-    fontSize: 32,
-    color: '#FFFFFF',
-    fontWeight: '300',
-    marginTop: -3,
   },
 });

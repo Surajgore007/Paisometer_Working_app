@@ -19,97 +19,102 @@ class BankNotificationService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         try {
-            // Safety check: ensure notification is valid
             if (sbn == null) return
             
-            // DEBUG LOG: Prove we received something
-            Log.d("PaisometerNative", "Received notification from package: ${sbn.packageName}")
+            val packageName = sbn.packageName
 
-        val packageName = sbn.packageName
+            // 0. NOISE FILTER (Crucial for Efficiency)
+            // Ignore "Messages is doing work" (Ongoing/Foreground Service)
+            // This prevents log spam and processing wrong events.
+            if (sbn.isOngoing || (sbn.notification.flags and Notification.FLAG_FOREGROUND_SERVICE) != 0) {
+                return
+            }
 
-            // INTELLIGENT FILTER: Only process notifications from the User's Default SMS App.
-            // This filters out WhatsApp, GPay, Uber, etc. without needing a hardcoded strict list.
+            // 1. DYNAMIC CHECK (Production Robustness)
+            // Ask Android: "What is the user's SMS app?"
+            // This handles any app the user chooses (e.g. Textra, Pulse, Signal)
             val defaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(applicationContext)
 
-            // Dynamic Check:
-            // 1. If defaultSmsPackage is found (99% of phones), STRICTLY matching it.
-            // 2. If defaultSmsPackage is null (rare cases/tablets), we fall back to allowing "com.google.android.apps.messaging" or standard list safely.
-            if (defaultSmsPackage != null) {
-                if (packageName != defaultSmsPackage) {
-                    // It's not the SMS app -> Ignore it silently.
-                    return
-                }
-            } else {
-                // FALLBACK for weird devices: Allow Google Messages & Samsung Messages (Most common)
-                // This prevents breaking the app if the API returns null.
-                if (packageName != "com.google.android.apps.messaging" && 
-                    packageName != "com.samsung.android.messaging" && 
-                    packageName != "com.android.mms") {
-                    return
-                }
+            // 2. STATIC FALLBACK (Reliability)
+            // If API returns null (some devices) or user hasn't set one, use known heavy hitters.
+            val allowedApps = setOf(
+                "com.google.android.apps.messaging",
+                "com.samsung.android.messaging",
+                "com.android.mms",
+                "com.oneplus.mms",
+                "com.oneplus.apps.messaging",
+                "com.truecaller",
+                "com.microsoft.android.smsorganizer" // Popular in India
+            )
+
+            var isAllowed = false
+            if (defaultSmsPackage != null && packageName == defaultSmsPackage) {
+                isAllowed = true
+            } else if (packageName in allowedApps) {
+                isAllowed = true
             }
 
+            if (!isAllowed) {
+                return 
+            }
 
+            Log.d("PaisometerNative", "Processing SMS from $packageName")
 
-        // 2. Extract Content safely
-        val extras = sbn.notification.extras
+            // 2. Extract Content safely
+            val extras = sbn.notification.extras
+            val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
+            val text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+                ?: extras.getCharSequence(Notification.EXTRA_TEXT)
+                ?: extras.getCharSequence(Notification.EXTRA_SUB_TEXT)
+                ?: "").toString()
 
-        // Prefer BIG_TEXT / Inbox style content to avoid truncation.
-        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
-        val text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
-            ?: extras.getCharSequence(Notification.EXTRA_TEXT)
-            ?: extras.getCharSequence(Notification.EXTRA_SUB_TEXT)
-            ?: "").toString()
+            // Some messaging apps use EXTRA_TEXT_LINES (inbox style)
+            val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+            val joinedLines = lines?.joinToString(" ") { it?.toString() ?: "" } ?: ""
 
-        // Some messaging apps use EXTRA_TEXT_LINES (inbox style)
-        val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
-        val joinedLines = lines?.joinToString(" ") { it?.toString() ?: "" } ?: ""
+            val fullMessageRaw = listOf(title, text, joinedLines)
+                .joinToString(" ")
+                .replace(Regex("\\s+"), " ")
+                .trim()
 
-        val fullMessageRaw = listOf(title, text, joinedLines)
-            .joinToString(" ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+            if (fullMessageRaw.isBlank()) return
 
-        if (fullMessageRaw.isBlank()) return
+            Log.d("PaisometerNative", "Raw Notification from $packageName: $fullMessageRaw")
 
-        Log.d("PaisometerNative", "Raw Notification from $packageName: $fullMessageRaw")
+            val fullMessage = fullMessageRaw
 
-        // Combine them so the parser sees "HDFC Bank: Rs 500 debited..."
-        val fullMessage = fullMessageRaw
-
-        // 3. Pass to Parser
-        if (fullMessage.isNotBlank()) {
-            // We call the Parser that lives in TxnParser.kt
-            // Using fullMessage improves merchant detection if the name is in the title
-            val txn = TxnParser.parseSms(fullMessage) 
-            
-            if (txn != null) {
-                // Deduplication: Check if we processed this exact txn signature < 5 seconds ago
-                val signature = "${txn.amount}|${txn.merchant}|${txn.type}"
-                val now = System.currentTimeMillis()
+            // 3. Pass to Parser
+            if (fullMessage.isNotBlank()) {
+                // We call the Parser that lives in TxnParser.kt
+                val txn = TxnParser.parseSms(fullMessage) 
                 
-                if (signature == lastTxnSignature && (now - lastTxnTime) < 5000) {
-                    Log.d("PaisometerNative", "Duplicate ignored: $signature")
-                    return
-                }
-                
-                lastTxnSignature = signature
-                lastTxnTime = now
-
-                Log.d("PaisometerNative", "Transaction Captured: ${txn.amount} at ${txn.merchant}")
-                
-                // 4. Save to Queue (Dead Letter Queue)
-                TransactionStore.add(applicationContext, txn)
-                
-                // 5. Show Interactive Notification
-                if (txn.type != "income") {
-                    showCategorizationNotification(txn)
+                if (txn != null) {
+                    // Deduplication: Check if we processed this exact txn signature < 5 seconds ago
+                    val signature = "${txn.amount}|${txn.merchant}|${txn.type}"
+                    val now = System.currentTimeMillis()
                     
-                    // --- SMART ALERTS (PsyOps) ---
-                    checkBudgetThresholds(txn.amount)
+                    if (signature == lastTxnSignature && (now - lastTxnTime) < 5000) {
+                        Log.d("PaisometerNative", "Duplicate ignored: $signature")
+                        return
+                    }
+                    
+                    lastTxnSignature = signature
+                    lastTxnTime = now
+
+                    Log.d("PaisometerNative", "Transaction Captured: ${txn.amount} at ${txn.merchant}")
+                    
+                    // 4. Save to Queue (Dead Letter Queue)
+                    TransactionStore.add(applicationContext, txn)
+                    
+                    // 5. Show Interactive Notification
+                    if (txn.type != "income") {
+                        showCategorizationNotification(txn)
+                        
+                        // --- SMART ALERTS (PsyOps) ---
+                        checkBudgetThresholds(txn.amount)
+                    }
                 }
             }
-        }
         } catch (e: Exception) {
             Log.e("PaisometerNative", "CRASH in onNotificationPosted", e)
         }
@@ -149,7 +154,6 @@ class BankNotificationService : NotificationListenerService() {
             manager.createNotificationChannel(serviceChannel)
 
             // CHANNEL 2: ALERT CHANNEL (For Urgent Budget Warnings)
-            // IMPORTANCE_HIGH = Heads-up Notification (Popup) + Sound
             val alertChannel = android.app.NotificationChannel(
                 "PAISO_ALERTS_ID",
                 "Paisometer Budget Alerts",
@@ -157,7 +161,18 @@ class BankNotificationService : NotificationListenerService() {
             )
             alertChannel.description = "Urgent warnings when daily limits are breached"
             alertChannel.enableVibration(true)
-            manager.createNotificationChannel(alertChannel)
+            manager.createNotificationChannel(alertChannel) // <-- THIS WAS MISSING!
+
+            // CHANNEL 3: ACTION CHANNEL (For Categorization Prompts)
+            // IMPORTANCE_HIGH = Heads-up Notification (Pop-up)
+            val actionChannel = android.app.NotificationChannel(
+                "PAISO_ACTION_ID",
+                "Paisometer Actions",
+                android.app.NotificationManager.IMPORTANCE_HIGH
+            )
+            actionChannel.description = "Interactive prompts to categorize transactions"
+            actionChannel.enableVibration(true)
+            manager.createNotificationChannel(actionChannel)
         }
     }
 
@@ -169,10 +184,10 @@ class BankNotificationService : NotificationListenerService() {
         )
 
         return android.app.Notification.Builder(this, "PAISO_CHANNEL_ID")
-            .setContentTitle("Paisometer is Active")
-            .setContentText("Listening for financial SMS...")
-            .setSmallIcon(R.mipmap.ic_stat_paiso)
-            .setLargeIcon(BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher))
+            .setContentTitle("Paisometer Active")
+            .setContentText("Listening silently...")
+            .setSmallIcon(R.drawable.ic_stat_wallet)
+            .setColor(0xFF000000.toInt()) // Brand Black
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
@@ -208,15 +223,29 @@ class BankNotificationService : NotificationListenerService() {
             return builder.build()
         }
 
-        val notification = Notification.Builder(this, "PAISO_CHANNEL_ID")
-            .setContentTitle("New Transaction: ₹${txn.amount}")
-            .setContentText("at ${txn.merchant}. Categorize it?")
-            .setSmallIcon(R.mipmap.ic_stat_paiso)
-            .setLargeIcon(BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher))
+        // Calculate Budget Context for Progress Bar
+        val prefs = getSharedPreferences("PaisoBudget", Context.MODE_PRIVATE)
+        val dailyLimit = prefs.getFloat("DAILY_LIMIT", 2000f).toInt() // Default 2000 if unused
+        var currentSpent = prefs.getFloat("CURRENT_SPENT", 0f).toInt()
+        
+        // Optimistic update for visual accuracy
+        currentSpent += txn.amount.toInt()
+
+        // USE ACTION CHANNEL (High Priority)
+        val notification = Notification.Builder(this, "PAISO_ACTION_ID")
+            .setContentTitle("₹${txn.amount}") // BIG BOLD AMOUNT
+            .setContentText("at ${txn.merchant}")
+            .setSubText("Update Category") // Top header small text
+            .setSmallIcon(R.drawable.ic_stat_wallet)
+            .setColor(0xFF000000.toInt()) // Premium Black Accent
+            .setStyle(Notification.BigTextStyle()
+                .bigText("Spending at ${txn.merchant}\nTap action below to categorize."))
+            .setProgress(dailyLimit, currentSpent, false) // ZOMATO STYLE PROGRESS BAR
             .setAutoCancel(true)
-            .addAction(createAction("🍔 Food", "food"))
-            .addAction(createAction("🚕 Travel", "transport"))
-            .addAction(createAction("❔ Other", "other", withInput = true))
+            .setPriority(Notification.PRIORITY_HIGH) 
+            .addAction(createAction("Food", "food"))
+            .addAction(createAction("Travel", "transport"))
+            .addAction(createAction("Other", "other", withInput = true))
             .build()
 
         val manager = getSystemService(android.app.NotificationManager::class.java)
@@ -245,35 +274,47 @@ class BankNotificationService : NotificationListenerService() {
             var title: String? = null
             var body: String? = null
 
-            // THRESHOLD 1: 70% (Warning)
-            if (ratio >= 0.7 && oldRatio < 0.7) {
+            // LOGIC FIX: Check Highest Severity FIRST to avoid showing "70% warning" when you just blew past 100%.
+            
+            // THRESHOLD 3 & 2: >= 100% (Limit Reached or Breached)
+            if (ratio >= 1.0) {
+                if (oldRatio < 1.0) {
+                    // FRESH BREACH: Just crossed the line
+                    val extra = totalSpentAfterTxn - dailyLimit
+                    title = "🛑 STOP. Daily Limit Reached."
+                    body = if (extra > 0) "You just overshot by ₹${extra.toInt()}. Close your wallet." 
+                           else "Not a single rupee more. You hit the limit."
+                } else {
+                    // ONGOING BREACH: Already over, still spending (Nagging)
+                    val extra = totalSpentAfterTxn - dailyLimit
+                    title = "🔥 CRITICAL FAILURE"
+                    body = "Bleeding money (₹${extra.toInt()} over). STOP."
+                }
+            }
+            
+            // THRESHOLD 1: 70% (Warning) - Only if we are NOT yet at 100%
+            else if (ratio >= 0.7 && oldRatio < 0.7) {
                 val remaining = dailyLimit - totalSpentAfterTxn
-                title = "⚠️ CAUTION: 70% Burnt"
-                body = "You have only ₹${remaining.toInt()} left. Tread carefully."
-            }
-
-            // THRESHOLD 2: 100% (Limit Reached)
-            else if (ratio >= 1.0 && oldRatio < 1.0) {
-                title = "🛑 STOP. Daily Limit Reached."
-                body = "Not a single rupee more. Close your wallet."
-            }
-
-            // THRESHOLD 3: > 100% (Overdraft - Every txn triggers this now)
-            else if (ratio > 1.0 && oldRatio >= 1.0) {
-                 // For overdraft, we might want to nag them on every significant txn, or maybe slightly randomized?
-                 // Let's nag them.
-                 val extra = totalSpentAfterTxn - dailyLimit
-                 title = "💀 CRITICAL FAILURE"
-                 body = "You are bleeding money (₹${extra.toInt()} over). Future you is suffering."
+                // Safe check to ensure we don't show negative numbers (logic above prevents this, but safety first)
+                if (remaining > 0) {
+                    title = "⚠️ CAUTION: 70% Burnt"
+                    body = "You have only ₹${remaining.toInt()} left. Tread carefully."
+                }
             }
 
             if (title != null) {
+                // Determine Icon based on severity
+                val largeIconRes = if (title.contains("STOP") || title.contains("CRITICAL")) 
+                    R.drawable.ic_alert_burn 
+                else 
+                    R.drawable.ic_alert_warning
+
                 // Use the ALERT Channel (High Priority)
                 val notification = Notification.Builder(this, "PAISO_ALERTS_ID")
                     .setContentTitle(title)
                     .setContentText(body)
-                    .setSmallIcon(R.mipmap.ic_stat_paiso)
-                    .setLargeIcon(BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher))
+                    .setSmallIcon(R.drawable.ic_stat_wallet)
+                    .setLargeIcon(BitmapFactory.decodeResource(resources, largeIconRes)) // Dynamic Big Icon
                     .setAutoCancel(true)
                     .setPriority(Notification.PRIORITY_HIGH) // For older Androids
                     .setCategory(Notification.CATEGORY_ALARM) // Treat as critical

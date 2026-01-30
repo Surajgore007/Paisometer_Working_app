@@ -14,6 +14,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { X } from 'lucide-react-native';
+
 import { useStore } from '../state/store';
 import { CategorySelector } from '../components/categoryselector';
 import { Numpad } from '../components/numpad';
@@ -27,7 +29,7 @@ export const AddTransactionScreen: React.FC<{ navigation: any; route: any }> = (
   const editingTransaction = route.params?.transaction;
 
   const [amount, setAmount] = useState(editingTransaction ? editingTransaction.amount.toString() : '0');
-  const [category, setCategory] = useState<Category>(editingTransaction ? editingTransaction.category : 'food');
+  const [category, setCategory] = useState<Category>(editingTransaction ? editingTransaction.category : 'other');
   const [type, setType] = useState<TransactionType>(editingTransaction ? editingTransaction.type : 'expense');
   const [note, setNote] = useState(editingTransaction ? editingTransaction.note || '' : '');
 
@@ -88,7 +90,8 @@ export const AddTransactionScreen: React.FC<{ navigation: any; route: any }> = (
           style={styles.closeButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={styles.closeIcon}>✕</Text>
+          {/* Replaced Text X with Lucide X */}
+          <X size={24} color="#000000" strokeWidth={2} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{editingTransaction ? 'EDIT ENTRY' : 'NEW ENTRY'}</Text>
         <View style={styles.placeholderIcon} />
@@ -229,11 +232,7 @@ const styles = StyleSheet.create({
     padding: 8,
     marginLeft: -8,
   },
-  closeIcon: {
-    fontSize: 20,
-    color: '#000000',
-    fontWeight: '300',
-  },
+  // closeIcon style removed as we use Lucide now
   headerTitle: {
     fontSize: 12,
     fontWeight: '700',

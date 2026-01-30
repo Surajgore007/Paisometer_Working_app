@@ -10,9 +10,12 @@ import {
   Platform,
   Alert,
   RefreshControl,
-  AppState, // <--- 1. Import AppState
+  AppState,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { Settings, X } from 'lucide-react-native'; // Premium Icons
+import { CategoryIcon } from '../components/CategoryIcon';
+
 import { useStore } from '../state/store';
 import { BudgetDisplay } from '../components/budgetdisplay';
 import { Transaction } from '../../core/types';
@@ -121,7 +124,7 @@ export const TodayScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         activeOpacity={0.7}
       >
         <View style={styles.iconContainer}>
-          <Text style={styles.emoji}>{category?.emoji || '▪️'}</Text>
+          <CategoryIcon categoryId={item.category} size={22} color="#000000" />
         </View>
 
         <View style={styles.transactionDetails}>
@@ -154,7 +157,8 @@ export const TodayScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           onPress={() => deleteTransaction(item.id)}
           hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
         >
-          <Text style={styles.deleteIcon}>×</Text>
+          {/* Replaced '×' with Lucide X Icon */}
+          <X size={20} color="#000000" strokeWidth={2} opacity={0.6} />
         </TouchableOpacity>
       </TouchableOpacity>
     );
@@ -179,7 +183,8 @@ export const TodayScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           onPress={() => navigation.navigate('Settings')}
           activeOpacity={0.6}
         >
-          <Text style={styles.settingsIcon}>⚙</Text>
+          {/* Replaced '⚙' with Lucide Settings Icon */}
+          <Settings size={20} color="#000000" strokeWidth={2} />
         </TouchableOpacity>
       </View>
 
@@ -261,7 +266,7 @@ const styles = StyleSheet.create({
   dateText: { fontSize: 11, fontWeight: '700', color: '#9CA3AF', letterSpacing: 1.5, marginBottom: 6 },
   pageTitle: { fontSize: 32, fontWeight: '800', color: '#000000', letterSpacing: -1, lineHeight: 38 },
   settingsBtn: { width: 40, height: 40, backgroundColor: '#F9FAFB', borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginTop: 4 },
-  settingsIcon: { fontSize: 18, color: '#000000', opacity: 0.8 },
+  // settingsIcon style removed as we use Lucide now
   errorBanner: { marginHorizontal: 24, marginBottom: 20, padding: 16, backgroundColor: '#000000', borderRadius: 12 },
   errorText: { fontSize: 12, fontWeight: '600', color: '#FFFFFF', letterSpacing: 0.5, textTransform: 'uppercase' },
   listHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, marginTop: 24, marginBottom: 16 },
@@ -282,7 +287,7 @@ const styles = StyleSheet.create({
   expenseText: { fontWeight: '600', color: '#000000' },
   incomeText: { fontWeight: '400', color: '#6B7280', fontStyle: 'italic' },
   deleteBtn: { padding: 8, marginLeft: 4, opacity: 0.3 },
-  deleteIcon: { fontSize: 24, color: '#000000', fontWeight: '300' },
+  // deleteIcon style removed as we use Lucide now
   emptyState: { alignItems: 'center', paddingTop: 80, opacity: 0.5 },
   emptyTitle: { fontSize: 16, fontWeight: '600', color: '#000000', marginBottom: 8 },
   emptySubtitle: { fontSize: 13, color: '#6B7280', textAlign: 'center', maxWidth: 250 },

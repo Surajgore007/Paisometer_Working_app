@@ -18,6 +18,8 @@ import { useStore } from '../state/store';
 import { CATEGORIES } from '../../core/constants';
 import { formatCurrency } from '../../core/utils';
 import { Transaction } from '../../core/types';
+import { CategoryIcon } from '../components/CategoryIcon';
+import { X, Trash2 } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -77,25 +79,25 @@ export const AnalyticsScreen = () => {
         const amount = categoryMap[key];
 
         let label = key;
-        let emoji = '💰';
+        let icon = 'Banknote'; // Default Icon
 
         if (viewType === 'expense') {
           const categoryConfig = CATEGORIES.find((c) => c.id === key);
           label = categoryConfig?.label || 'Other';
-          emoji = categoryConfig?.emoji || '🏷️';
+          icon = categoryConfig?.icon || 'Tag';
         } else {
-          // Income Emoji Logic
-          emoji = '💵';
-          if (key.toLowerCase().includes('salary')) emoji = '💼';
-          if (key.toLowerCase().includes('interest')) emoji = '🏦';
-          if (key.toLowerCase().includes('refund')) emoji = '↩️';
-          if (key.toLowerCase().includes('upi')) emoji = '📱';
+          // Income Icon Logic
+          icon = 'Banknote';
+          if (key.toLowerCase().includes('salary')) icon = 'Briefcase';
+          if (key.toLowerCase().includes('interest')) icon = 'Landmark';
+          if (key.toLowerCase().includes('refund')) icon = 'Undo2';
+          if (key.toLowerCase().includes('upi')) icon = 'Smartphone';
         }
 
         return {
           id: key,
           label,
-          emoji,
+          icon,
           amount,
           percentage: totalSpent === 0 ? 0 : (amount / totalSpent) * 100,
         };
@@ -121,7 +123,6 @@ export const AnalyticsScreen = () => {
 
     txnsInCategory.forEach(t => {
       // Logic: Use Note if available and not generic 'Auto-Entry', else Merchant
-      // This allows users to see "Swiggy" (Merchant) or "Gym" (Custom Note)
       let key = t.merchant || 'General';
 
       // If merchant is strictly 'Unknown', show 'General'
@@ -156,7 +157,7 @@ export const AnalyticsScreen = () => {
 
     return {
       categoryName: categoryConfig?.label || 'Unknown',
-      emoji: categoryConfig?.emoji || '🏷️',
+      icon: categoryConfig?.icon || 'Tag',
       breakdown
     };
   }, [filteredTxns, selectedCategory]);
@@ -202,7 +203,8 @@ export const AnalyticsScreen = () => {
     >
       <View style={styles.rowHeader}>
         <View style={styles.iconBox}>
-          <Text style={styles.emoji}>{item.emoji}</Text>
+          {/* Use CategoryIcon with dynamic name */}
+          <CategoryIcon iconName={item.icon} size={20} color="#000000" />
         </View>
         <View style={styles.nameContainer}>
           <Text style={styles.catName}>{item.label}</Text>
@@ -230,9 +232,12 @@ export const AnalyticsScreen = () => {
       <View style={styles.modalOverlay}>
         <View style={styles.bottomSheet}>
           <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>
-              {subCategoryData?.emoji} {subCategoryData?.categoryName}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <CategoryIcon iconName={subCategoryData?.icon} size={24} />
+              <Text style={styles.sheetTitle}>
+                {subCategoryData?.categoryName}
+              </Text>
+            </View>
             <TouchableOpacity onPress={() => setSelectedCategory(null)} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>Close</Text>
             </TouchableOpacity>
@@ -284,7 +289,7 @@ export const AnalyticsScreen = () => {
               <Text style={styles.cardTotal}>{formatCurrency(activeSubItem?.amount || 0)}</Text>
             </View>
             <TouchableOpacity onPress={() => setSelectedSubLabel(null)} style={styles.cardCloseBtn}>
-              <Text style={styles.cardCloseText}>✕</Text>
+              <X size={20} color="#4B5563" strokeWidth={2.5} />
             </TouchableOpacity>
           </View>
 
@@ -311,7 +316,7 @@ export const AnalyticsScreen = () => {
                     onPress={() => handleDelete(t)}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <Text style={styles.deleteText}>🗑️</Text>
+                    <Trash2 size={20} color="#EF4444" strokeWidth={2} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -507,9 +512,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  emoji: {
-    fontSize: 18,
-  },
   nameContainer: {
     flex: 1,
   },
@@ -531,7 +533,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#D1D5DB',
     marginTop: -2,
-    textAlign: 'right' // Ensure it aligns right
+    textAlign: 'right'
   },
   // Progress Bar
   progressBarBg: {

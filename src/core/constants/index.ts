@@ -3,13 +3,13 @@
 // Import Category type
 import { Category } from '../types';
 
-export const CATEGORIES: { id: Category; label: string; emoji: string }[] = [
-  { id: 'food', label: 'Food', emoji: '🍔' },
-  { id: 'transport', label: 'Transport', emoji: '🚗' },
-  { id: 'bills', label: 'Bills', emoji: '💡' },
-  { id: 'shopping', label: 'Shopping', emoji: '🛍️' },
-  { id: 'entertainment', label: 'Fun', emoji: '🎮' },
-  { id: 'other', label: 'Other', emoji: '📦' },
+export const CATEGORIES: { id: Category; label: string; emoji: string; icon: string }[] = [
+  { id: 'food', label: 'Food', emoji: '🍔', icon: 'Utensils' },
+  { id: 'transport', label: 'Transport', emoji: '🚗', icon: 'Car' },
+  { id: 'bills', label: 'Bills', emoji: '💡', icon: 'Zap' },
+  { id: 'shopping', label: 'Shopping', emoji: '🛍️', icon: 'ShoppingBag' },
+  { id: 'entertainment', label: 'Fun', emoji: '🎮', icon: 'Gamepad2' },
+  { id: 'other', label: 'Other', emoji: '📦', icon: 'Package' },
 ];
 
 export const STORAGE_KEYS = {

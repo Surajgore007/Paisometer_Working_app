@@ -9,13 +9,17 @@ import {
     Dimensions,
     SafeAreaView,
     ScrollView,
+    Alert,
 } from 'react-native';
+import { ChevronLeft, X } from 'lucide-react-native';
 import { useStore } from '../state/store';
 import { formatCurrency } from '../../core/utils';
 
 const { width } = Dimensions.get('window');
 
 type Step = 'INTRO' | 'MODE' | 'INCOME' | 'DURATION' | 'OBLIGATIONS' | 'SAVINGS' | 'RESULT';
+
+const STEPS_ORDER: Step[] = ['INTRO', 'MODE', 'INCOME', 'DURATION', 'OBLIGATIONS', 'SAVINGS', 'RESULT'];
 
 export const SmartOnboardingModal = () => {
     const { settings, updateSettings, loadData } = useStore();
@@ -27,6 +31,43 @@ export const SmartOnboardingModal = () => {
     const [durationDays, setDurationDays] = useState('30'); // For lump sum
     const [obligations, setObligations] = useState((settings.fixedObligations || 0).toString());
     const [savings, setSavings] = useState(settings.savingsGoalAmount.toString());
+
+    const handleBack = () => {
+        const currentIndex = STEPS_ORDER.indexOf(step);
+        if (currentIndex > 0) {
+            let prevStep = STEPS_ORDER[currentIndex - 1];
+
+            // Skip logic based on mode
+            if (step === 'OBLIGATIONS' && mode === 'lumpsum' && prevStep === 'DURATION') {
+                // Should be correct
+            }
+            if (step === 'OBLIGATIONS' && mode === 'monthly') {
+                // If coming back to Obligations in monthly, we skipped DURATION. 
+                // Previous of OBLIGATIONS is DURATION in array, but for monthly we skip DURATION.
+                // So go back to INCOME.
+                prevStep = 'INCOME';
+            }
+
+            setStep(prevStep);
+        }
+    };
+
+    const handleClose = () => {
+        Alert.alert(
+            "Skip Setup?",
+            "You can always configure this later in Settings.",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Exit",
+                    style: 'destructive',
+                    onPress: async () => {
+                        await updateSettings({ onboardingCompleted: true });
+                    }
+                }
+            ]
+        );
+    };
 
     const handleNext = async () => {
         if (step === 'INTRO') setStep('MODE');
@@ -76,11 +117,29 @@ export const SmartOnboardingModal = () => {
             <SafeAreaView style={styles.container}>
                 <View style={styles.content}>
 
-                    {/* Header / Progress */}
-                    <View style={styles.progressContainer}>
-                        {['INTRO', 'MODE', 'INCOME', 'DURATION', 'OBLIGATIONS', 'SAVINGS', 'RESULT'].map((s, i) => (
-                            <View key={s} style={[styles.dot, step === s && styles.activeDot]} />
-                        ))}
+                    {/* Navigation Header */}
+                    <View style={styles.navHeader}>
+                        {step !== 'INTRO' ? (
+                            <TouchableOpacity onPress={handleBack} style={styles.navBtn}>
+                                <ChevronLeft size={28} color="#FFF" />
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={{ width: 28 }} /> // Spacer
+                        )}
+
+                        <View style={styles.progressDots}>
+                            {STEPS_ORDER.map((s, i) => {
+                                // Don't show DURATION dot if monthly
+                                if (mode === 'monthly' && s === 'DURATION') return null;
+                                return (
+                                    <View key={s} style={[styles.dot, step === s && styles.activeDot]} />
+                                );
+                            })}
+                        </View>
+
+                        <TouchableOpacity onPress={handleClose} style={styles.navBtn}>
+                            <X size={24} color="#666" />
+                        </TouchableOpacity>
                     </View>
 
                     <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -136,7 +195,9 @@ export const SmartOnboardingModal = () => {
                                         value={income}
                                         onChangeText={setIncome}
                                         placeholder="0"
-                                        placeholderTextColor="#E5E7EB"
+                                        placeholderTextColor="#333"
+                                        selectionColor="#FFF"
+                                        autoFocus
                                     />
                                 </View>
                             </View>
@@ -156,7 +217,9 @@ export const SmartOnboardingModal = () => {
                                         value={durationDays}
                                         onChangeText={setDurationDays}
                                         placeholder="30"
-                                        placeholderTextColor="#E5E7EB"
+                                        placeholderTextColor="#333"
+                                        selectionColor="#FFF"
+                                        autoFocus
                                     />
                                     <Text style={styles.currencyPrefix}>Days</Text>
                                 </View>
@@ -178,7 +241,9 @@ export const SmartOnboardingModal = () => {
                                         value={obligations}
                                         onChangeText={setObligations}
                                         placeholder="0"
-                                        placeholderTextColor="#E5E7EB"
+                                        placeholderTextColor="#333"
+                                        selectionColor="#FFF"
+                                        autoFocus
                                     />
                                 </View>
                             </View>
@@ -199,7 +264,9 @@ export const SmartOnboardingModal = () => {
                                         value={savings}
                                         onChangeText={setSavings}
                                         placeholder="0"
-                                        placeholderTextColor="#E5E7EB"
+                                        placeholderTextColor="#333"
+                                        selectionColor="#FFF"
+                                        autoFocus
                                     />
                                 </View>
                             </View>
@@ -261,22 +328,29 @@ const styles = StyleSheet.create({
         padding: 24,
         justifyContent: 'space-between',
     },
-    progressContainer: {
+    navHeader: {
         flexDirection: 'row',
-        justifyContent: 'center',
-        marginBottom: 40,
-        marginTop: 20,
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+        height: 44,
+    },
+    navBtn: {
+        padding: 8,
+    },
+    progressDots: {
+        flexDirection: 'row',
     },
     dot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
+        width: 6,
+        height: 6,
+        borderRadius: 3,
         backgroundColor: '#333',
-        marginHorizontal: 6,
+        marginHorizontal: 4,
     },
     activeDot: {
         backgroundColor: '#FFF',
-        width: 24,
+        width: 18,
     },
     scrollContent: {
         flexGrow: 1,

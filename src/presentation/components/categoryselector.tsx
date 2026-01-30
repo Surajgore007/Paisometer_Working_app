@@ -4,6 +4,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Category } from '../../core/types';
 import { CATEGORIES } from '../../core/constants';
+import { CategoryIcon } from './CategoryIcon';
 
 interface CategorySelectorProps {
   selectedCategory: Category;
@@ -26,7 +27,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
       >
         {CATEGORIES.map((cat) => {
           const isActive = selectedCategory === cat.id;
-          
+
           return (
             <TouchableOpacity
               key={cat.id}
@@ -38,14 +39,13 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
               activeOpacity={0.8}
             >
               <View style={styles.contentRow}>
-                {/* Emoji acts as the icon */}
-                <Text style={[
-                    styles.emoji,
-                    isActive && styles.emojiActive
-                  ]}>
-                  {cat.emoji}
-                </Text>
-                
+                <CategoryIcon
+                  categoryId={cat.id}
+                  active={isActive}
+                  size={18}
+                  color="#111827"
+                />
+
                 <Text
                   style={[
                     styles.categoryText,

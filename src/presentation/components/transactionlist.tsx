@@ -5,6 +5,8 @@ import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native
 import { Transaction } from '../../core/types';
 import { formatCurrency } from '../../core/utils';
 import { CATEGORIES } from '../../core/constants';
+import { CategoryIcon } from './CategoryIcon';
+import { Banknote } from 'lucide-react-native';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -38,7 +40,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         onPress={() => onPressTransaction && onPressTransaction(item)}
       >
         <View style={styles.iconContainer}>
-          <Text style={styles.emoji}>{category?.emoji || '📦'}</Text>
+          <CategoryIcon categoryId={item.category} size={24} color="#000000" />
         </View>
 
         <View style={styles.details}>
@@ -78,7 +80,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   if (transactions.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyEmoji}>💸</Text>
+        <Banknote size={64} color="#000000" opacity={0.2} />
         <Text style={styles.emptyText}>No transactions today</Text>
         <Text style={styles.emptySubtext}>Tap + to add your first expense</Text>
       </View>
